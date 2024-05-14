@@ -14,3 +14,5 @@ python SS_OCR.py
 ***
 # 使用说明
 详见[Wiki](https://github.com/op200/Simple_Subtitle_OCR/wiki)
+# 原理
+判断前后帧的边缘差值`正整数`，高于阈值`整数`的帧将被OCR`使用EazyOCR`
