@@ -9,8 +9,6 @@ from threading import Thread
 from time import sleep
 from bisect import bisect_right
 
-def error(info:str):
-    print(info)
 
 screen_width, screen_height = windll.user32.GetSystemMetrics(0), windll.user32.GetSystemMetrics(1)
 
@@ -21,9 +19,7 @@ fps, srtPath = 0, ""
 difference_list = None
 
 root_Tk = tk.Tk()
-# root.geometry("300x200")
-root_Tk.title("标题")
-
+root_Tk.title("Simple Subtitle OCR")
 
 #左侧控件
 left_Frame = ttk.Frame(root_Tk)
@@ -106,6 +102,8 @@ def submit_path(new_path):
     set_srt_Frame.grid(row=0,column=0,pady=10)
 
     set_ocr_Frame.grid(row=1,column=0,pady=10)
+    
+    log_Frame.grid(row=8,column=0,pady=10)
 
     sec_rendering_Cap = cv2.VideoCapture(path)
     main_rendering_Cap = cv2.VideoCapture(path)
@@ -146,7 +144,8 @@ def submit_path(new_path):
         if len(video_path_review_text)>99:
             video_path_review_text = video_path_review_text[0:99]+"\n"+video_path_review_text[99:]
         video_path_review_Label.config(text=video_path_review_text)
-
+    else:
+        log.error("无法打开"+path)
 
 #右侧控件
 
@@ -317,6 +316,33 @@ start_ocr = ttk.Button(ocr_set_frame,text="开始")
 start_ocr.grid(row=1,column=0,columnspan=2,pady=10)
 
 
+#日志
+class log:
+    @staticmethod
+    def output(info:str):
+        log_text.insert(tk.END,info)
+
+    @staticmethod
+    def error(info:str):
+        log.output(f"[ERROR]{info}")
+
+    @staticmethod
+    def warning(info:str):
+        log.output(f"[WARNING]{info}")
+
+
+log_Frame = ttk.Frame(right_Frame)
+
+log_vScrollbar = ttk.Scrollbar(log_Frame)
+log_vScrollbar.grid(row=0,column=1,sticky='ns')
+
+log_text = tk.Text(log_Frame,width=45,height=10, yscrollcommand=log_vScrollbar.set)
+log_text.grid(row=0,column=0,sticky='nsew')
+
+
+log_vScrollbar.config(command=log_text.yview)
+
+
 #选框
 start_x,start_y,end_x,end_y = 0,0,0,0
 
@@ -379,7 +405,7 @@ class SRT:
         try:
             f = open(path, 'w')
         except IOError:
-            error("无法打开:"+path)
+            log.error("无法打开:"+path)
         else:
             if overwrite_Tkbool:
                 f.write("")
@@ -391,7 +417,7 @@ class SRT:
         try:
             self.srt = open(self.path, 'a')
         except  IOError:
-            error("无法打开:"+self.path)
+            log.error("无法打开:"+self.path)
         else:
             self.is_open = True
 
@@ -520,7 +546,6 @@ def Thread_compute_difference(frame_front):
         if difference_list[frame_now]==-1:
             #写入差值
             difference_list[frame_now] = threshold_detection(frame_front, frame_behind, kernel)
-            # print(difference_list[frame_now])
         #下一帧
         frame_front = frame_behind
         frame_now+=1
@@ -630,7 +655,6 @@ def Thread_OCR_reading():
                 current_line += text+'\n'
 
             if previous_line != current_line:
-                print("writ -- :"+previous_line)
                 current_time = frame_num/fps
                 srt.writeLine(previous_time, current_time, previous_line)
                 previous_line = current_line
