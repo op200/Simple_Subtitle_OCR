@@ -1,2 +1,8 @@
-# Simple_Subtitle_OCR
-A simple OCR program with GUI for hard subtitles extraction. 内嵌字幕提取
+# 安装依赖
+```
+pip install opencv-python
+pip install pillow
+pip install easyocr
+pip install numpy
+```
+如果需要GPU加速OCR，按[EasyOCR](https://github.com/JaidedAI/EasyOCR)中说明安装
