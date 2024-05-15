@@ -7,23 +7,22 @@ from ctypes import windll
 import numpy as np
 from threading import Thread
 from time import sleep
-from bisect import bisect_right
 
 
 screen_width, screen_height = windll.user32.GetSystemMetrics(0), windll.user32.GetSystemMetrics(1)
 
-path=""
-scale, frame_height, frame_width, new_frame_height, new_frame_width=False,0,0,0,0
+path=str
+scale, frame_height, frame_width, new_frame_height, new_frame_width = False, int,int,int,int
 right_x,right_y,left_x,left_y = 0,0,0,0
-fps, srtPath = 0, ""
-difference_list = None
-video_frame_img_height = 6
+fps = int
+difference_list = list
+VIDEO_FRAME_IMG_HEIGHT = 6
 
 root_Tk = tk.Tk()
 root_Tk.title("Simple Subtitle OCR")
 
 #左侧控件
-left_Frame = ttk.Frame(root_Tk)
+left_Frame = ttk.Frame(root_Tk, cursor="tcross")
 left_Frame.grid(row=0,column=0,padx=5,pady=5)
 #右侧控件
 right_Frame = ttk.Frame(root_Tk)
@@ -33,7 +32,7 @@ right_Frame.grid(row=0,column=1,padx=5,pady=5)
 #左侧控件
 
 #视频预览控件
-video_review_Label = ttk.Label(left_Frame)
+video_review_Label = ttk.Label(left_Frame, cursor="target")
 
 #进度条控件
 video_Progressbar = ttk.Progressbar(left_Frame)
@@ -44,7 +43,7 @@ def draw_video_frame_Label_frameColor(frame_num:int, color:tuple[int,int,int]):
     x = round(new_frame_width*frame_num/(frame_count-1))-1
     if x<0:
         x=0
-    video_frame_img[:video_frame_img_height-1, x] = color
+    video_frame_img[:VIDEO_FRAME_IMG_HEIGHT-1, x] = color
 
 def flush_video_frame_Label():
     photo = ImageTk.PhotoImage(Image.fromarray(video_frame_img))
@@ -53,7 +52,8 @@ def flush_video_frame_Label():
 
 def draw_video_frame_Label_range(start_frame:int, end_frame:int, color:tuple[int,int,int]):
     global video_frame_img
-    video_frame_img[-1, max(round(new_frame_width*start_frame/(frame_count-1))-1, 0):round(new_frame_width*end_frame/(frame_count-1))-1] = color
+    video_frame_img[-1,:,:]=0
+    video_frame_img[-1, max(round(new_frame_width*start_frame/(frame_count-1))-1, 0):max(round(new_frame_width*end_frame/(frame_count-1))-1, 0) + 1] = color
 
 
 video_frame_Label = ttk.Label(left_Frame)
@@ -70,7 +70,6 @@ def jump_to_frame():
     if scale:
         frame = cv2.resize(frame,(new_frame_width,new_frame_height))
     cv2.rectangle(frame,(right_x, right_y, left_x-right_x, left_y-right_y), color=(0,255,255),thickness=1)
-    # video_review.update_idletasks()
 
     
     video_Progressbar["value"] = frame_now/(frame_count-1)*100
@@ -80,7 +79,7 @@ def jump_to_frame():
     video_review_Label.image = photo
 
     #set frame_now
-    frame_now_Tkvar.set(frame_now)
+    frame_now_Tkint.set(frame_now)
 
 #进度条的滚轮事件
 def video_progressbar_mousewheel(event):
@@ -120,7 +119,7 @@ def submit_path(new_path):
     frame_num_Frame.grid(row=2,column=0)
 
     draw_box_frame.grid(row=4,column=0,pady=15)
-    ocr_set_frame.grid(row=7,column=0,pady=15)
+    ocr_set_Frame.grid(row=7,column=0,pady=15)
 
     set_srt_Frame.grid(row=0,column=0,pady=10)
 
@@ -163,7 +162,7 @@ def submit_path(new_path):
         frame_count = int(main_rendering_Cap.get(cv2.CAP_PROP_FRAME_COUNT))
         difference_list = [-1]*frame_count#初始化差值表
         frame_count_Label.config(text = f" / {frame_count-1:9d}")
-        frame_now_Tkvar.set(0)
+        frame_now_Tkint.set(0)
         video_path_review_text = input_video_Entry.get()
         if len(video_path_review_text)>49:
             video_path_review_text = video_path_review_text[0:49]+"\n"+video_path_review_text[49:]
@@ -174,7 +173,7 @@ def submit_path(new_path):
 
         #绘制进度条的帧提示
         global video_frame_img
-        video_frame_img = np.ones((video_frame_img_height,new_frame_width,3), np.uint8) * 224
+        video_frame_img = np.ones((VIDEO_FRAME_IMG_HEIGHT,new_frame_width,3), np.uint8) * 224
         video_frame_img[-1,:,:] = 1
         for frame_num in range(0,frame_count):
             draw_video_frame_Label_frameColor(frame_num, (0,0,0))
@@ -227,8 +226,8 @@ def enter_to_change_frame_now(_):
 frame_now_Frame = ttk.Frame(frame_num_Frame)
 frame_now_Frame.grid(row=0,column=0)
 
-frame_now_Tkvar = tk.IntVar()
-frame_now_Entry = ttk.Entry(frame_now_Frame,textvariable=frame_now_Tkvar,width=5)
+frame_now_Tkint = tk.IntVar()
+frame_now_Entry = ttk.Entry(frame_now_Frame,textvariable=frame_now_Tkint,width=5)
 frame_now_Entry.bind("<Return>", enter_to_change_frame_now)
 frame_now_Entry.grid(row=0,column=0)
 
@@ -239,15 +238,22 @@ frame_count_Label.grid(row=0,column=1)
 frame_range_Frame = ttk.Frame(frame_num_Frame)
 frame_range_Frame.grid(row=1,column=0)
 
+def set_start_frame_num_Click(frame1_Tkint:tk.IntVar, frame2_Tkint:tk.IntVar):
+    frame1_Tkint.set(frame_now_Tkint.get())
+    if start_frame_num_Tkint.get() > end_frame_num_Tkint.get():
+        frame2_Tkint.set(frame1_Tkint.get())
+    draw_video_frame_Label_range(start_frame_num_Tkint.get(),end_frame_num_Tkint.get(),(228,12,109))
+    flush_video_frame_Label()
+
 start_frame_num_Tkint = tk.IntVar()
 start_frame_num_Entry = ttk.Entry(frame_range_Frame,width=11,textvariable=start_frame_num_Tkint)
-set_start_frame_num_Button = ttk.Button(frame_range_Frame,text="设为开始帧",command=lambda:start_frame_num_Tkint.set(min(frame_now_Tkvar.get(),end_frame_num.get())))
+set_start_frame_num_Button = ttk.Button(frame_range_Frame,text="设为开始帧",command=lambda:set_start_frame_num_Click(start_frame_num_Tkint,end_frame_num_Tkint))
 start_frame_num_Entry.grid(row=0,column=0,padx=14,pady=5)
 set_start_frame_num_Button.grid(row=1,column=0)
 
-end_frame_num = tk.IntVar()
-end_frame_num_entry = ttk.Entry(frame_range_Frame,width=11,textvariable=end_frame_num)
-set_end_frame_num = ttk.Button(frame_range_Frame,text="设为结束帧",command=lambda:end_frame_num.set(max(frame_now_Tkvar.get(),start_frame_num_Tkint.get())))
+end_frame_num_Tkint = tk.IntVar()
+end_frame_num_entry = ttk.Entry(frame_range_Frame,width=11,textvariable=end_frame_num_Tkint)
+set_end_frame_num = ttk.Button(frame_range_Frame,text="设为结束帧",command=lambda:set_start_frame_num_Click(end_frame_num_Tkint,start_frame_num_Tkint))
 end_frame_num_entry.grid(row=0,column=1,padx=14)
 set_end_frame_num.grid(row=1,column=1)
 
@@ -338,21 +344,34 @@ open_gpu_Tkbool = tk.BooleanVar()
 open_gpu_set_Button = ttk.Checkbutton(set_ocr_Frame,text="使用GPU",var=open_gpu_Tkbool)
 open_gpu_set_Button.grid(row=0,column=3,padx=10)
 
-ocr_set_frame = ttk.Frame(right_Frame)
 
-threshold_value_input_title_Label = ttk.Label(ocr_set_frame,text="转场检测阈值:")
+ocr_set_Frame = ttk.Frame(right_Frame)
+
+
+threshold_value_input_Frame = ttk.Frame(ocr_set_Frame)
+threshold_value_input_Frame.grid(row=0,column=0)
+
+threshold_value_input_title_Label = ttk.Label(threshold_value_input_Frame,text="转场检测阈值:")
 threshold_value_input_title_Label.grid(row=0,column=0)
-threshold_value_Tkint = tk.IntVar(value=-1)
-threshold_value_Entry = ttk.Entry(ocr_set_frame,width=5,textvariable=threshold_value_Tkint)
-threshold_value_Entry.grid(row=0,column=1)
+threshold_value_input_Tkint = tk.IntVar(value=-1)
+threshold_value_input_Entry = ttk.Entry(threshold_value_input_Frame,width=5,textvariable=threshold_value_input_Tkint)
+threshold_value_input_Entry.grid(row=0,column=1)
+
+
+start_threshold_detection_Frame = tk.Frame(ocr_set_Frame)
+start_threshold_detection_Frame.grid(row=1,column=0,pady=15)
+
+start_threshold_detection_Button = ttk.Button(start_threshold_detection_Frame,text="阈值检测")
+start_threshold_detection_Button.grid(row=0,column=0,padx=15)
+
+restart_threshold_detection_Button = ttk.Button(start_threshold_detection_Frame,text="重新检测")
+restart_threshold_detection_Button.grid(row=0,column=1,padx=15)
+
 
 is_Listener_threshold_value_Entry = False
-transition_frame_num_Label = ttk.Label(ocr_set_frame, text="符合阈值帧 / 总检测帧 : 0 / 0")
-transition_frame_num_Label.grid(row=0,column=2)
+transition_frame_num_Label = ttk.Label(ocr_set_Frame, text="符合阈值帧 / 总检测帧 : 0 / 0")
+transition_frame_num_Label.grid(row=2,column=0)
 transition_frame_num_Label.grid_forget()
-
-start_ocr = ttk.Button(ocr_set_frame,text="开始")
-start_ocr.grid(row=1,column=0,columnspan=2,pady=10)
 
 
 #日志
@@ -491,10 +510,10 @@ def findThreshold_start():
     end_frame_num_entry.config(state=tk.DISABLED)
     set_end_frame_num.config(state=tk.DISABLED)
 
-    threshold_value_Entry.config(state=tk.DISABLED)
+    threshold_value_input_Entry.config(state=tk.DISABLED)
 
-    start_ocr.config(text="OCR",command=start_OCR)
-    start_ocr.config(state=tk.DISABLED)
+    start_threshold_detection_Button.config(text="OCR",command=start_OCR)
+    start_threshold_detection_Button.config(state=tk.DISABLED)
 
     
     video_review_Label.unbind("<MouseWheel>")
@@ -515,8 +534,11 @@ def findThreshold_start():
 
 
 def findThreshold_end():
-    global ocr_reader,srt,difference_list
-    srt.end_write()
+    global ocr_reader,srt,difference_list,is_Listener_threshold_value_Entry
+    if hasattr(srt, 'srt'):
+        srt.end_write()
+
+    is_Listener_threshold_value_Entry=False
 
     input_video_Entry.config(state=tk.NORMAL)
     input_video_Button.config(state=tk.NORMAL)
@@ -536,16 +558,32 @@ def findThreshold_end():
     end_frame_num_entry.config(state=tk.NORMAL)
     set_end_frame_num.config(state=tk.NORMAL)
 
-    threshold_value_Entry.config(state=tk.NORMAL)
+    threshold_value_input_Entry.config(state=tk.NORMAL)
     transition_frame_num_Label.grid_forget()
 
-    start_ocr.config(text="开始",command=findThreshold_start)
+    video_review_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
+    video_review_Label.bind("<B1-Motion>", draw_video_review_MouseDrag)
+    video_review_Label.bind("<Button-1>", draw_video_review_MouseDown)
+
+    video_Progressbar.bind("<MouseWheel>", video_progressbar_mousewheel)
+    video_Progressbar.bind("<B1-Motion>", video_progressbar_leftDrag)
+    video_Progressbar.bind("<Button-1>", video_progressbar_leftDrag)
+
+    video_frame_Label.bind("<B1-Motion>", video_progressbar_leftDrag)
+    video_frame_Label.bind("<Button-1>", video_progressbar_leftDrag)
+    video_frame_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
+
+    start_threshold_detection_Button.config(text="阈值检测",command=findThreshold_start)
 
     del srt
     del ocr_reader
     difference_list = [-1]*frame_count
-    
-start_ocr.config(command=findThreshold_start)
+
+
+
+start_threshold_detection_Button.config(command=findThreshold_start)
+restart_threshold_detection_Button.config(command=findThreshold_end)
+
 
 kernel = np.ones((5,5),np.uint8)
 def threshold_detection(img1,img2,kernel) -> int:
@@ -569,8 +607,8 @@ def findThreshold_reading():
     video_frame_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
 
     if left_x_text.get()<4 or left_y_text.get()<4:
-        sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,0)
-        _, frame = sec_rendering_Cap.read()
+        # sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,0)
+        # _, frame = sec_rendering_Cap.read()
         left_x_text.set(frame_width)
         left_y_text.set(frame_height)
         right_x_text.set(0)
@@ -587,7 +625,7 @@ def findThreshold_reading():
     draw_video_frame_Label_range(start_num, end_num, (27, 241, 255))
     flush_video_frame_Label()
 
-    if threshold_value_Entry.get() != "0":#阈值不为0 生成差值表
+    if threshold_value_input_Entry.get() != "0":#阈值不为0 生成差值表
         bedraw_frame = np.zeros((left_y_text.get()-right_y_text.get(), left_x_text.get()-right_x_text.get(), 3),np.uint8)
         sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,start_num)
         frame_now = start_num
@@ -596,7 +634,7 @@ def findThreshold_reading():
         
 
 def Thread_compute_difference(frame_front):
-    global bedraw_frame,frame_now,is_Listener_threshold_value_Entry,end_num
+    global bedraw_frame,frame_now,is_Listener_threshold_value_Entry
     while frame_now<=end_num:
         _, frame = sec_rendering_Cap.read()
         frame_behind = frame[right_y_text.get():left_y_text.get(), right_x_text.get():left_x_text.get()]
@@ -609,13 +647,13 @@ def Thread_compute_difference(frame_front):
         frame_now+=1
     frame_now-=1
 
-    threshold_value_Entry.config(state=tk.NORMAL)
+    threshold_value_input_Entry.config(state=tk.NORMAL)
 
     transition_frame_num_Label.grid()
     is_Listener_threshold_value_Entry = True
     Thread(target=Listener_threshold_value_Entry).start()
     
-    start_ocr.config(text="OCR",state=tk.NORMAL)
+    start_threshold_detection_Button.config(text="OCR",state=tk.NORMAL)
 
 
 def Thread_draw_video_progress():
@@ -648,19 +686,16 @@ def Listener_threshold_value_Entry():
     global difference_list
 
     total_frame_num = end_num-start_num+1
-    # sorted_difference_list = sorted(difference_list[start_num:end_num+1])
 
     while is_Listener_threshold_value_Entry:
-        if len(threshold_value_Entry.get())>0:
-            if threshold_value_Entry.get().isdigit() or threshold_value_Entry.get()[0] in ('-','+') and threshold_value_Entry.get()[1:].isdigit():
-                # transition_frame_num_Label.config(text = f"符合阈值帧 / 总检测帧 : {total_num - bisect_right(sorted_difference_list, threshold_value_Tkint.get())} / {total_num}")
+        if len(threshold_value_input_Entry.get())>0:
+            if threshold_value_input_Entry.get().isdigit() or threshold_value_input_Entry.get()[0] in ('-','+') and threshold_value_input_Entry.get()[1:].isdigit():
                 for frame_num in range(0,frame_count):
                     draw_video_frame_Label_frameColor(frame_num, (0,0,0))
-                flush_video_frame_Label()
 
                 meet_frame_num = 0
                 for frame_num in range(start_num,end_num+1):
-                    if difference_list[frame_num] > threshold_value_Tkint.get():
+                    if difference_list[frame_num] > threshold_value_input_Tkint.get():
                         meet_frame_num += 1
                         draw_video_frame_Label_frameColor(frame_num, (237,16,234))
 
@@ -672,14 +707,15 @@ def Listener_threshold_value_Entry():
 def start_OCR():
     global is_Listener_threshold_value_Entry,frame_now,start_num,end_num,is_Thread_OCR_reading
 
-    threshold_value_Entry.config(state=tk.DISABLED)
+    threshold_value_input_Entry.config(state=tk.DISABLED)
     is_Listener_threshold_value_Entry = False
 
 
     frame_now = start_num
 
     is_Thread_OCR_reading = True
-    ocr_reading = Thread(target=Thread_OCR_reading).start()
+    ocr_reading = Thread(target=Thread_OCR_reading)
+    ocr_reading.start()
 
     Thread(target=Thread_draw_video_progress).start()
 
@@ -691,7 +727,7 @@ def start_OCR():
         ocr_reading.join()
         frame_now = end_num
         findThreshold_end()
-    start_ocr.config(text="终止",command=end_OCR)
+    start_threshold_detection_Button.config(text="终止",command=end_OCR)
     
 
 def Thread_OCR_reading():
@@ -702,7 +738,7 @@ def Thread_OCR_reading():
     #第一行
     previous_line, previous_time = "", 0
     for frame_num in range(start_num,end_num+1):
-        if difference_list[frame_num] > threshold_value_Tkint.get():
+        if difference_list[frame_num] > threshold_value_input_Tkint.get():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
@@ -722,7 +758,7 @@ def Thread_OCR_reading():
     for frame_num in range(frame_now+1,end_num+1):
         if not is_Thread_OCR_reading:
             return
-        if difference_list[frame_num] > threshold_value_Tkint.get():
+        if difference_list[frame_num] > threshold_value_input_Tkint.get():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
@@ -745,6 +781,6 @@ def Thread_OCR_reading():
 
     srt.end_write()
 
-    start_ocr.config(text="完成",command=findThreshold_end)
+    start_threshold_detection_Button.config(text="完成",command=findThreshold_end)
 
 root_Tk.mainloop()
