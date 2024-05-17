@@ -1,15 +1,75 @@
 import tkinter as tk
 from tkinter import ttk
+
 import cv2
 from PIL import Image, ImageTk
-import easyocr
-from ctypes import windll
 import numpy as np
+
 from threading import Thread
 from time import sleep
 
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+import webbrowser
+def hyperlink_jump(hyperlink:str):
+    webbrowser.open(hyperlink)
+import shutil
 
-screen_width, screen_height = windll.user32.GetSystemMetrics(0), windll.user32.GetSystemMetrics(1)
+
+VERSION = "0.4"
+
+#日志
+class log:
+    @staticmethod
+    def output(info:str):
+        log_text.insert(tk.END,info+'\n')
+
+    @staticmethod
+    def error(info:str):
+        log.output(f"[ERROR]{info}")
+
+    @staticmethod
+    def warning(info:str):
+        log.output(f"[WARNING]{info}")
+
+    @staticmethod
+    def info(info:str):
+        log.output(f"[INFO]{info}")
+
+
+import platform
+#判断系统对应路径
+os_type = platform.system()
+if os_type == 'Windows':
+    config_dir = os.path.join(os.getenv('APPDATA'), 'SS_OCR')
+elif os_type == 'Linux' or os_type == 'Darwin':
+    config_dir = os.path.join(os.path.expanduser('~'), '.config', 'SS_OCR')
+else:
+    config_dir = ""
+    log.warning("无法确认系统")
+
+os.makedirs(config_dir, exist_ok=True)
+
+ocr_choice:int = 1
+
+import configparser
+#不存在配置则写入默认配置
+config = configparser.ConfigParser()
+config_file_pathname = os.path.join(config_dir, 'config.ini')
+if not os.path.exists(config_file_pathname) or config.read(config_file_pathname) and config.get("DEFAULT","version")!=VERSION:
+    config["DEFAULT"] = {
+        "version" : VERSION,
+        "ocr" : "PaddleOCR",
+        "language" : "ch",
+        "srt_path" : r".\output.srt",
+        "srt_overwrite" : 0,
+        "use_gpu" : 0
+    }
+    with open(config_file_pathname, 'w') as configfile:
+        config.write(configfile)
+
+
+
 
 path=str
 scale, frame_height, frame_width, new_frame_height, new_frame_width = False, int,int,int,int
@@ -18,8 +78,80 @@ fps = int
 difference_list = list
 VIDEO_FRAME_IMG_HEIGHT = 6
 
+
 root_Tk = tk.Tk()
 root_Tk.title("Simple Subtitle OCR")
+
+
+#样式
+from tkinter import font as tkfont
+TkDefaultFont = tkfont.nametofont("TkDefaultFont").actual()['family']
+underline_font = tkfont.Font(family=TkDefaultFont, size=tkfont.nametofont("TkDefaultFont").actual()['size'], underline=1)
+
+
+#菜单
+menu_Menu = tk.Menu(root_Tk)
+
+menu_setting_Menu = tk.Menu(menu_Menu, tearoff=0)
+menu_setting_switchOCR_Menu = tk.Menu(menu_Menu, tearoff=0)
+def switch_to_paddleocr():
+    global config
+    if os.path.exists(config_file_pathname):
+        config["DEFAULT"]["ocr"]="PaddleOCR"
+        config["DEFAULT"]["language"]="ch"
+        with open(config_file_pathname, 'w') as configfile:
+            config.write(configfile)
+    ocr_choice = 1
+    set_language_Entry.delete(0,tk.END)
+    set_language_Entry.insert(0,"ch")
+    log.info("切换至PaddleOCR")
+
+def switch_to_EasyOCR():
+    global config
+    if os.path.exists(config_file_pathname):
+        config["DEFAULT"]["ocr"]="EasyOCR"
+        config["DEFAULT"]["language"]="ch_sim,en"
+        with open(config_file_pathname, 'w') as configfile:
+            config.write(configfile)
+    ocr_choice = 2
+    set_language_Entry.delete(0,tk.END)
+    set_language_Entry.insert(0,"ch_sim,en")
+    log.info("切换至EasyOCR")
+
+menu_setting_switchOCR_Menu.add_command(label="PaddleOCR",command=switch_to_paddleocr)
+menu_setting_switchOCR_Menu.add_command(label="EasyOCR",command=switch_to_EasyOCR)
+
+
+menu_Menu.add_cascade(label="设置",menu=menu_setting_Menu)
+menu_setting_Menu.add_cascade(label="切换OCR库",menu=menu_setting_switchOCR_Menu)
+def remove_config_dir():
+    if os.path.exists(config_dir):
+        shutil.rmtree(config_dir)
+        log.info("已删除"+config_dir)
+    else:
+        log.error("未找到配置文件目录"+config_dir)
+menu_setting_Menu.add_command(label="清除配置文件",command=lambda:shutil.rmtree(config_dir))
+
+
+def create_help_about_Toplevel():
+    about_Toplevel = tk.Toplevel(root_Tk,width=20,height=15)
+    about_Toplevel.geometry('320x180')
+    about_Toplevel.title("About")
+    frame = ttk.Frame(about_Toplevel)
+    frame.pack(expand=True)
+    ttk.Label(frame,text="Simple Subtitle OCR v0.4\n\n").pack()
+
+    hyperlink="https://github.com/op200/Simple_Subtitle_OCR"
+    hyperlink_Label = ttk.Label(frame,text=hyperlink, cursor="hand2", foreground="blue", font=underline_font)
+    hyperlink_Label.bind("<Button-1>",lambda _:hyperlink_jump(hyperlink))
+    hyperlink_Label.pack()
+    
+menu_help_Menu = tk.Menu(menu_Menu, tearoff=0)
+menu_help_Menu.add_command(label="关于",command=create_help_about_Toplevel)
+menu_Menu.add_cascade(label="帮助",menu=menu_help_Menu)
+
+
+root_Tk.config(menu=menu_Menu)
 
 #左侧控件
 left_Frame = ttk.Frame(root_Tk, cursor="tcross")
@@ -66,6 +198,7 @@ def jump_to_frame():
     global scale,frame_now,frame_count
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_now)
     _, frame = main_rendering_Cap.read()
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     #重新绘制选框
     if scale:
         frame = cv2.resize(frame,(new_frame_width,new_frame_height))
@@ -73,7 +206,7 @@ def jump_to_frame():
 
     
     video_Progressbar["value"] = frame_now/(frame_count-1)*100
-
+    
     photo = ImageTk.PhotoImage(Image.fromarray(frame))
     video_review_Label.config(image=photo)
     video_review_Label.image = photo
@@ -112,9 +245,11 @@ video_frame_Label.bind("<B1-Motion>", video_progressbar_leftDrag)
 video_frame_Label.bind("<Button-1>", video_progressbar_leftDrag)
 
 #输入路径 初始化
-def submit_path(new_path):
+def submit_path(_):
+    log.info("使用的OCR库是: "+config.get("DEFAULT","ocr"))
+
     global path,scale,main_rendering_Cap,sec_rendering_Cap,frame_count,frame_height,frame_width,new_frame_height,new_frame_width,fps,difference_list,frame_now
-    path = new_path
+    path = input_video_Entry.get()
     #渲染控件
     frame_num_Frame.grid(row=2,column=0)
 
@@ -134,13 +269,14 @@ def submit_path(new_path):
     if ret:
         #获取尺寸 判断缩放
         frame_height, frame_width, _ = frame.shape
-        video_size.config(text=str(frame_width)+" x "+str(frame_height))
+        video_size_Label.config(text=str(frame_width)+" x "+str(frame_height))
         fps = main_rendering_Cap.get(cv2.CAP_PROP_FPS)
-        video_fps.config(text=str(fps)+" FPS")
-        video_size.grid(row=0,column=0)
-        video_fps.grid(row=0,column=1,padx=8)
-        if frame_height > screen_height*4/5 or frame_width > screen_width*4/5:
-            scale = round(max(screen_height/frame_height, screen_width/frame_width)+0.5)
+        video_fps_Label.config(text=str(fps)+" FPS")
+        video_size_Label.grid(row=0,column=0)
+        video_fps_Label.grid(row=0,column=1,padx=8)
+        if frame_height > root_Tk.winfo_screenheight()*4/5 or frame_width > root_Tk.winfo_screenwidth()*4/5:
+            log.info("视频尺寸过大 预览画面已缩小")
+            scale = round(max(root_Tk.winfo_screenheight()/frame_height, root_Tk.winfo_screenwidth()/frame_width)+0.5)
             new_frame_width,new_frame_height = int(frame_width/scale),int(frame_height/scale)
             frame = cv2.resize(frame,(new_frame_width,new_frame_height))
         else:
@@ -168,6 +304,8 @@ def submit_path(new_path):
             video_path_review_text = video_path_review_text[0:49]+"\n"+video_path_review_text[49:]
         if len(video_path_review_text)>99:
             video_path_review_text = video_path_review_text[0:99]+"\n"+video_path_review_text[99:]
+        if len(video_path_review_text)>149:
+            video_path_review_text = video_path_review_text[0:149]+"\n"+video_path_review_text[149:]
         video_path_review_Label.config(text=video_path_review_text)
 
 
@@ -183,7 +321,8 @@ def submit_path(new_path):
 
     else:
         log.error("无法打开"+path)
-
+    
+    root_Tk.focus_set()
 
 #右侧控件
 
@@ -196,11 +335,10 @@ video_path_review_Label.grid(row=1,column=0,columnspan=2,pady=8)
 
 input_video_Entry = ttk.Entry(input_video_Frame,width=40)
 input_video_Entry.grid(row=2,column=0)
-def enter_to_input_path(_):
-    submit_path(input_video_Entry.get())
-input_video_Entry.bind("<Return>", enter_to_input_path)
+
+input_video_Entry.bind("<Return>", submit_path)
                 
-input_video_Button = ttk.Button(input_video_Frame, text="提交", width=4, command=lambda:submit_path(input_video_Entry.get()))
+input_video_Button = ttk.Button(input_video_Frame, text="提交", width=4, command=lambda:submit_path(None))
 input_video_Button.grid(row=2,column=1,padx=5)
 
 #帧数
@@ -215,13 +353,8 @@ def enter_to_change_frame_now(_):
     if frame_now>=frame_count:
         frame_now=frame_count-1
 
-    # if frame_now == frame_count-1:
-    #     video_progressbar_pos=100
-    # else:
-    #     video_progressbar_pos = float(frame_now)/frame_count*100
-
-    # video_Progressbar["value"] = video_progressbar_pos
     jump_to_frame()
+    root_Tk.focus_set()
 
 frame_now_Frame = ttk.Frame(frame_num_Frame)
 frame_now_Frame.grid(row=0,column=0)
@@ -252,17 +385,17 @@ start_frame_num_Entry.grid(row=0,column=0,padx=14,pady=5)
 set_start_frame_num_Button.grid(row=1,column=0)
 
 end_frame_num_Tkint = tk.IntVar()
-end_frame_num_entry = ttk.Entry(frame_range_Frame,width=11,textvariable=end_frame_num_Tkint)
-set_end_frame_num = ttk.Button(frame_range_Frame,text="设为结束帧",command=lambda:set_start_frame_num_Click(end_frame_num_Tkint,start_frame_num_Tkint))
-end_frame_num_entry.grid(row=0,column=1,padx=14)
-set_end_frame_num.grid(row=1,column=1)
+end_frame_num_Entry = ttk.Entry(frame_range_Frame,width=11,textvariable=end_frame_num_Tkint)
+set_end_frame_num_Button = ttk.Button(frame_range_Frame,text="设为结束帧",command=lambda:set_start_frame_num_Click(end_frame_num_Tkint,start_frame_num_Tkint))
+end_frame_num_Entry.grid(row=0,column=1,padx=14)
+set_end_frame_num_Button.grid(row=1,column=1)
 
 #视频信息
-video_info_frame = ttk.Frame(right_Frame)
-video_info_frame.grid(row=3,column=0,pady=10)
+video_info_Frame = ttk.Frame(right_Frame)
+video_info_Frame.grid(row=3,column=0,pady=10)
 
-video_size = ttk.Label(video_info_frame)
-video_fps = ttk.Label(video_info_frame)
+video_size_Label = ttk.Label(video_info_Frame)
+video_fps_Label = ttk.Label(video_info_Frame)
 
 #选框位置
 draw_box_frame = ttk.Frame(right_Frame)
@@ -301,12 +434,14 @@ def enter_to_change_draw_box(_):
     
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_now)
     _, frame = main_rendering_Cap.read()
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     if scale:
         frame = cv2.resize(frame,(new_frame_width,new_frame_height))
     cv2.rectangle(frame,(right_x, right_y, left_x-right_x, left_y-right_y), color=(0,255,255),thickness=1)
     photo = ImageTk.PhotoImage(Image.fromarray(frame))
     video_review_Label.config(image=photo)
     video_review_Label.image = photo
+    root_Tk.focus_set()
 
 draw_box_right_x.bind("<Return>", enter_to_change_draw_box)
 draw_box_right_y.bind("<Return>", enter_to_change_draw_box)
@@ -323,12 +458,13 @@ set_srtPath_title = ttk.Label(set_srt_Frame,text="SRT位置:")
 set_srtPath_title.grid(row=0,column=0)
 
 set_srtPath_Entry = ttk.Entry(set_srt_Frame)
-set_srtPath_Entry.insert(0,r".\output.srt")
+set_srtPath_Entry.insert(0,config.get("DEFAULT","srt_path"))
 set_srtPath_Entry.grid(row=0,column=1)
 
-overwrite_Tkbool = tk.BooleanVar()
-overwrite_set = ttk.Checkbutton(set_srt_Frame,text="覆写SRT",var=overwrite_Tkbool)
-overwrite_set.grid(row=0,column=2,padx=10)
+srt_overwrite_Tkbool = tk.BooleanVar()
+srt_overwrite_Tkbool.set(bool(int(config.get("DEFAULT","srt_overwrite"))))
+srt_overwrite_set = ttk.Checkbutton(set_srt_Frame,text="覆写SRT",var=srt_overwrite_Tkbool)
+srt_overwrite_set.grid(row=0,column=2,padx=10)
 
 
 set_ocr_Frame = ttk.Frame(output_setup_frame)
@@ -337,12 +473,13 @@ set_language_title_Label = ttk.Label(set_ocr_Frame,text="OCR语言:")
 set_language_title_Label.grid(row=0,column=1)
 
 set_language_Entry = ttk.Entry(set_ocr_Frame)
-set_language_Entry.insert(0,"ch_sim,en")
+set_language_Entry.insert(0,config.get("DEFAULT","language"))
 set_language_Entry.grid(row=0,column=2)
 
 open_gpu_Tkbool = tk.BooleanVar()
-open_gpu_set_Button = ttk.Checkbutton(set_ocr_Frame,text="使用GPU",var=open_gpu_Tkbool)
-open_gpu_set_Button.grid(row=0,column=3,padx=10)
+open_gpu_Tkbool.set(bool(int(config.get("DEFAULT","use_gpu"))))
+open_gpu_set_Checkbutton = ttk.Checkbutton(set_ocr_Frame,text="使用GPU",var=open_gpu_Tkbool)
+open_gpu_set_Checkbutton.grid(row=0,column=3,padx=10)
 
 
 ocr_set_Frame = ttk.Frame(right_Frame)
@@ -374,20 +511,6 @@ transition_frame_num_Label.grid(row=2,column=0)
 transition_frame_num_Label.grid_forget()
 
 
-#日志
-class log:
-    @staticmethod
-    def output(info:str):
-        log_text.insert(tk.END,info)
-
-    @staticmethod
-    def error(info:str):
-        log.output(f"[ERROR]{info}")
-
-    @staticmethod
-    def warning(info:str):
-        log.output(f"[WARNING]{info}")
-
 
 log_Frame = ttk.Frame(right_Frame)
 
@@ -399,6 +522,21 @@ log_text.grid(row=0,column=0,sticky='nsew')
 
 
 log_vScrollbar.config(command=log_text.yview)
+#读取配置
+config.read(config_file_pathname)
+if config.get("DEFAULT","ocr") == "PaddleOCR":
+    ocr_choice = 1
+    try:
+        from paddleocr import PaddleOCR
+    except ModuleNotFoundError:
+        log.error("未能载入库:paddleocr")
+elif config.get("DEFAULT","ocr") == "EasyOCR":
+    ocr_choice = 2
+    try:
+        import easyocr
+    except ModuleNotFoundError:
+        log.error("未能载入库:easyocr")
+
 
 
 #选框
@@ -408,6 +546,7 @@ def draw_box():
     global scale,frame_now,start_x,start_y,end_x,end_y,right_x,right_y,left_x,left_y
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_now)
     _, frame = main_rendering_Cap.read()
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     right_x = min(start_x,end_x)
     right_y = min(start_y,end_y)
@@ -465,7 +604,7 @@ class SRT:
         except IOError:
             log.error("无法打开:"+path)
         else:
-            if overwrite_Tkbool:
+            if srt_overwrite_Tkbool:
                 f.write("")
             f.close()
             self.path = path
@@ -480,7 +619,7 @@ class SRT:
             self.is_open = True
 
     def writeLine(self, start_time:float, end_time:float, line:str):
-        self.srt.write(f"{self.line_num}\n{int(start_time//3600):02d}:{int(start_time%3600//60):02d}:{int(start_time%60):02d},{int(str(round(start_time%1,3))[2:]):03d} --> {int(end_time//3600):02d}:{int(end_time%3600//60):02d}:{int(end_time%60):02d},{int(str(round(end_time%1,3))[2:]):03d}\n{line}\n")
+        self.srt.write(f"{self.line_num}\n{int(start_time//3600):02d}:{int(start_time%3600//60):02d}:{int(start_time%60):02d},{int(round(start_time%1*1000)):03d} --> {int(end_time//3600):02d}:{int(end_time%3600//60):02d}:{int(end_time%60):02d},{int(round(end_time%1*1000)):03d}\n{line}\n")
         self.line_num += 1
 
     def end_write(self):
@@ -489,8 +628,22 @@ class SRT:
 
 ocr_reader,srt = None,None
 def findThreshold_start():
+
+    #保存配置
+    config["DEFAULT"]["language"] = set_language_Entry.get()
+    config["DEFAULT"]["srt_path"] = set_srtPath_Entry.get()
+    config["DEFAULT"]["srt_overwrite"] = str(1 if srt_overwrite_Tkbool.get() else 0)
+    config["DEFAULT"]["use_gpu"] = str(1 if open_gpu_Tkbool.get() else 0)
+	
+    with open(config_file_pathname, 'w') as configfile:
+        config.write(configfile)
+
     global ocr_reader,srt
-    ocr_reader = easyocr.Reader(set_language_Entry.get().split(','),gpu=open_gpu_Tkbool.get())
+    if ocr_choice==1:
+        ocr_reader = PaddleOCR(lang=set_language_Entry.get(),use_gpu=open_gpu_Tkbool.get())
+    elif ocr_choice==2:
+        ocr_reader = easyocr.Reader(set_language_Entry.get().split(','),gpu=open_gpu_Tkbool.get())
+    
     srt = SRT(set_srtPath_Entry.get())
     input_video_Entry.config(state=tk.DISABLED)
     input_video_Button.config(state=tk.DISABLED)
@@ -501,14 +654,14 @@ def findThreshold_start():
     draw_box_left_y.config(state=tk.DISABLED)
 
     set_srtPath_Entry.config(state=tk.DISABLED)
-    overwrite_set.config(state=tk.DISABLED)
+    srt_overwrite_set.config(state=tk.DISABLED)
     set_language_Entry.config(state=tk.DISABLED)
-    open_gpu_set_Button.config(state=tk.DISABLED)
+    open_gpu_set_Checkbutton.config(state=tk.DISABLED)
 
     start_frame_num_Entry.config(state=tk.DISABLED)
     set_start_frame_num_Button.config(state=tk.DISABLED)
-    end_frame_num_entry.config(state=tk.DISABLED)
-    set_end_frame_num.config(state=tk.DISABLED)
+    end_frame_num_Entry.config(state=tk.DISABLED)
+    set_end_frame_num_Button.config(state=tk.DISABLED)
 
     threshold_value_input_Entry.config(state=tk.DISABLED)
 
@@ -529,7 +682,6 @@ def findThreshold_start():
     video_frame_Label.unbind("<Button-1>")
 
     findThreshold_reading()
-    # findThreshold_end()
 
 
 
@@ -549,14 +701,14 @@ def findThreshold_end():
     draw_box_left_y.config(state=tk.NORMAL)
 
     set_srtPath_Entry.config(state=tk.NORMAL)
-    overwrite_set.config(state=tk.NORMAL)
+    srt_overwrite_set.config(state=tk.NORMAL)
     set_language_Entry.config(state=tk.NORMAL)
-    open_gpu_set_Button.config(state=tk.NORMAL)
+    open_gpu_set_Checkbutton.config(state=tk.NORMAL)
 
     start_frame_num_Entry.config(state=tk.NORMAL)
     set_start_frame_num_Button.config(state=tk.NORMAL)
-    end_frame_num_entry.config(state=tk.NORMAL)
-    set_end_frame_num.config(state=tk.NORMAL)
+    end_frame_num_Entry.config(state=tk.NORMAL)
+    set_end_frame_num_Button.config(state=tk.NORMAL)
 
     threshold_value_input_Entry.config(state=tk.NORMAL)
     transition_frame_num_Label.grid_forget()
@@ -615,7 +767,7 @@ def findThreshold_reading():
         right_y_text.set(0)
 
     #获取帧范围
-    start_num,end_num = int(start_frame_num_Entry.get()),int(end_frame_num_entry.get())
+    start_num,end_num = int(start_frame_num_Entry.get()),int(end_frame_num_Entry.get())
     if start_num<0:
         start_num=0
     if end_num>frame_count-1:
@@ -729,6 +881,17 @@ def start_OCR():
         findThreshold_end()
     start_threshold_detection_Button.config(text="终止",command=end_OCR)
     
+def OCR_API(frame):
+    if ocr_choice==1:
+        text=ocr_reader.ocr(frame)[0]
+        if text==None:
+            readed_text=[""]
+        else:
+            readed_text = [line[1][0] for line in text]
+    elif ocr_choice==2:
+        readed_text = ocr_reader.readtext(frame, detail=0)
+
+    return '\n'.join(readed_text)+'\n'
 
 def Thread_OCR_reading():
     global frame_now
@@ -742,19 +905,12 @@ def Thread_OCR_reading():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
-            _, frame = sec_rendering_Cap.read()
-
-            readed_text = ocr_reader.readtext(frame[right_y:left_y, right_x:left_x], detail=0)
-
-            previous_line = ""
-            for text in readed_text:
-                previous_line += text+'\n'
+            previous_line = OCR_API(sec_rendering_Cap.read()[1][right_y:left_y, right_x:left_x])
                 
             previous_time = frame_num/fps
             break
 
     #中间所有行
-    current_line = ""
     for frame_num in range(frame_now+1,end_num+1):
         if not is_Thread_OCR_reading:
             return
@@ -762,19 +918,13 @@ def Thread_OCR_reading():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
-            _, frame = sec_rendering_Cap.read()
-
-            readed_text = ocr_reader.readtext(frame[right_y:left_y, right_x:left_x], detail=0)
-
-            current_line = ""
-            for text in readed_text:
-                current_line += text+'\n'
+            current_line = OCR_API(sec_rendering_Cap.read()[1][right_y:left_y, right_x:left_x])
 
             if previous_line != current_line:
                 current_time = frame_num/fps
                 srt.writeLine(previous_time, current_time, previous_line)
-                previous_line = current_line
-                previous_time = current_time
+                print(previous_time, current_time)
+                previous_line, previous_time = current_line, current_time
 
     #最后一行
     srt.writeLine(previous_time, end_num/fps, current_line)
