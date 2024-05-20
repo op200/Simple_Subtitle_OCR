@@ -16,7 +16,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 
 #日志
 class log:
@@ -278,11 +278,12 @@ def submit_path(_):
         video_fps_Label.config(text=str(fps)+" FPS")
         video_size_Label.grid(row=0,column=0)
         video_fps_Label.grid(row=0,column=1,padx=8)
+        print(root_Tk.winfo_screenheight()*4/5,root_Tk.winfo_screenheight())
         if frame_height > root_Tk.winfo_screenheight()*4/5 or frame_width > root_Tk.winfo_screenwidth()*4/5:
-            log.info("视频尺寸过大 预览画面已缩小")
-            scale = round(max(root_Tk.winfo_screenheight()/frame_height, root_Tk.winfo_screenwidth()/frame_width)+0.5)
+            scale = max(root_Tk.winfo_screenheight()/frame_height, root_Tk.winfo_screenwidth()/(frame_width+200), 1.8)
             new_frame_width,new_frame_height = int(frame_width/scale),int(frame_height/scale)
             frame = cv2.resize(frame,(new_frame_width,new_frame_height))
+            log.info(f"视频画幅过大 预览画面已缩小(1/{scale:.2f}-->{new_frame_width}x{new_frame_height})")
         else:
             new_frame_width,new_frame_height = frame_width,frame_height
             scale = False
