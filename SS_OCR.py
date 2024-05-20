@@ -16,7 +16,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 
 #日志
 class log:
@@ -416,8 +416,10 @@ draw_box_left_x.grid(row=0,column=2,padx=15)
 draw_box_left_y.grid(row=0,column=3,padx=15)
 
 def enter_to_change_draw_box(_):
-    global scale,right_x,right_y,left_x,left_y
+    global scale,right_x,right_y,left_x,left_y,difference_list
     
+    difference_list = [-1]*frame_count
+
     if right_x_text.get() < 0:
         right_x_text.set(0)
     if right_y_text.get() < 0:
