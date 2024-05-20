@@ -16,7 +16,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 
-VERSION = "0.4"
+VERSION = "0.4.1"
 
 #日志
 class log:
@@ -86,7 +86,7 @@ root_Tk.title("Simple Subtitle OCR")
 #样式
 from tkinter import font as tkfont
 TkDefaultFont = tkfont.nametofont("TkDefaultFont").actual()['family']
-underline_font = tkfont.Font(family=TkDefaultFont, size=tkfont.nametofont("TkDefaultFont").actual()['size'], underline=1)
+underline_font = tkfont.Font(family=TkDefaultFont, size=tkfont.nametofont("TkDefaultFont").actual()['size'], underline=True)
 
 
 #菜单
@@ -139,7 +139,7 @@ def create_help_about_Toplevel():
     about_Toplevel.title("About")
     frame = ttk.Frame(about_Toplevel)
     frame.pack(expand=True)
-    ttk.Label(frame,text="Simple Subtitle OCR v0.4\n\n").pack()
+    ttk.Label(frame,text=f"Simple Subtitle OCR {VERSION}\n\n").pack()
 
     hyperlink="https://github.com/op200/Simple_Subtitle_OCR"
     hyperlink_Label = ttk.Label(frame,text=hyperlink, cursor="hand2", foreground="blue", font=underline_font)
@@ -198,21 +198,25 @@ def jump_to_frame():
     global scale,frame_now,frame_count
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_now)
     _, frame = main_rendering_Cap.read()
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    #重新绘制选框
-    if scale:
-        frame = cv2.resize(frame,(new_frame_width,new_frame_height))
-    cv2.rectangle(frame,(right_x, right_y, left_x-right_x, left_y-right_y), color=(0,255,255),thickness=1)
+    try:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    except cv2.error:
+        log.warning(f"[{frame_now}]该帧无法读取(应检查视频封装)")
+    else:
+        #重新绘制选框
+        if scale:
+            frame = cv2.resize(frame,(new_frame_width,new_frame_height))
+        cv2.rectangle(frame,(right_x, right_y, left_x-right_x, left_y-right_y), color=(0,255,255),thickness=1)
 
-    
-    video_Progressbar["value"] = frame_now/(frame_count-1)*100
-    
-    photo = ImageTk.PhotoImage(Image.fromarray(frame))
-    video_review_Label.config(image=photo)
-    video_review_Label.image = photo
+        
+        video_Progressbar["value"] = frame_now/(frame_count-1)*100
+        
+        photo = ImageTk.PhotoImage(Image.fromarray(frame))
+        video_review_Label.config(image=photo)
+        video_review_Label.image = photo
 
-    #set frame_now
-    frame_now_Tkint.set(frame_now)
+        #set frame_now
+        frame_now_Tkint.set(frame_now)
 
 #进度条的滚轮事件
 def video_progressbar_mousewheel(event):
@@ -335,6 +339,7 @@ video_path_review_Label.grid(row=1,column=0,columnspan=2,pady=8)
 
 input_video_Entry = ttk.Entry(input_video_Frame,width=40)
 input_video_Entry.grid(row=2,column=0)
+input_video_Entry.focus_set()
 
 input_video_Entry.bind("<Return>", submit_path)
                 
@@ -509,6 +514,10 @@ is_Listener_threshold_value_Entry = False
 transition_frame_num_Label = ttk.Label(ocr_set_Frame, text="符合阈值帧 / 总检测帧 : 0 / 0")
 transition_frame_num_Label.grid(row=2,column=0)
 transition_frame_num_Label.grid_forget()
+
+now_frame_Dvalue_Label = ttk.Label(ocr_set_Frame, text="当前帧差值: ")
+now_frame_Dvalue_Label.grid(row=3,column=0)
+now_frame_Dvalue_Label.grid_forget()
 
 
 
@@ -686,7 +695,7 @@ def findThreshold_start():
 
 
 def findThreshold_end():
-    global ocr_reader,srt,difference_list,is_Listener_threshold_value_Entry
+    global ocr_reader,srt,is_Listener_threshold_value_Entry
     if hasattr(srt, 'srt'):
         srt.end_write()
 
@@ -712,6 +721,7 @@ def findThreshold_end():
 
     threshold_value_input_Entry.config(state=tk.NORMAL)
     transition_frame_num_Label.grid_forget()
+    now_frame_Dvalue_Label.grid_forget()
 
     video_review_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
     video_review_Label.bind("<B1-Motion>", draw_video_review_MouseDrag)
@@ -729,7 +739,6 @@ def findThreshold_end():
 
     del srt
     del ocr_reader
-    difference_list = [-1]*frame_count
 
 
 
@@ -802,6 +811,7 @@ def Thread_compute_difference(frame_front):
     threshold_value_input_Entry.config(state=tk.NORMAL)
 
     transition_frame_num_Label.grid()
+    now_frame_Dvalue_Label.grid()
     is_Listener_threshold_value_Entry = True
     Thread(target=Listener_threshold_value_Entry).start()
     
@@ -835,7 +845,6 @@ def Thread_draw_video_progress():
 
 
 def Listener_threshold_value_Entry():
-    global difference_list
 
     total_frame_num = end_num-start_num+1
 
@@ -853,7 +862,7 @@ def Listener_threshold_value_Entry():
 
                 flush_video_frame_Label()
                 transition_frame_num_Label.config(text = f"符合阈值帧 / 总检测帧 : {meet_frame_num} / {total_frame_num}")
-        
+                now_frame_Dvalue_Label.config(text = f"当前帧差值: {difference_list[frame_now]}", foreground=('#ED10EA' if difference_list[frame_now]>threshold_value_input_Tkint.get() else 'black'))
         sleep(0.5)
 
 def start_OCR():
