@@ -16,7 +16,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 
-VERSION = "0.4.3"
+VERSION = "0.4.4"
 
 #日志
 class log:
@@ -95,7 +95,7 @@ menu_Menu = tk.Menu(root_Tk)
 menu_setting_Menu = tk.Menu(menu_Menu, tearoff=0)
 menu_setting_switchOCR_Menu = tk.Menu(menu_Menu, tearoff=0)
 def switch_to_paddleocr():
-    global config
+    global config,ocr_choice
     if os.path.exists(config_file_pathname):
         config["DEFAULT"]["ocr"]="PaddleOCR"
         config["DEFAULT"]["language"]="ch"
@@ -278,7 +278,6 @@ def submit_path(_):
         video_fps_Label.config(text=str(fps)+" FPS")
         video_size_Label.grid(row=0,column=0)
         video_fps_Label.grid(row=0,column=1,padx=8)
-        print(root_Tk.winfo_screenheight()*4/5,root_Tk.winfo_screenheight())
         if frame_height > root_Tk.winfo_screenheight()*4/5 or frame_width > root_Tk.winfo_screenwidth()*4/5:
             scale = max(root_Tk.winfo_screenheight()/frame_height, root_Tk.winfo_screenwidth()/(frame_width+200), 1.8)
             new_frame_width,new_frame_height = int(frame_width/scale),int(frame_height/scale)
@@ -638,7 +637,6 @@ class SRT:
         self.srt.close()
     
 
-ocr_reader,srt = None,None
 def findThreshold_start():
 
     #保存配置
@@ -698,10 +696,12 @@ def findThreshold_start():
 
 
 def findThreshold_end():
-    global ocr_reader,srt,is_Listener_threshold_value_Entry
+    global ocr_reader,srt,is_Listener_threshold_value_Entry,frame_now
     if hasattr(srt, 'srt'):
         srt.end_write()
 
+    frame_now=end_num#关闭阈值检测和绘制线程
+    sleep(0.2)
     is_Listener_threshold_value_Entry=False
 
     input_video_Entry.config(state=tk.NORMAL)
@@ -848,7 +848,7 @@ def Thread_draw_video_progress():
 
 
 def Listener_threshold_value_Entry():
-
+    global meet_frame_num
     total_frame_num = end_num-start_num+1
 
     while is_Listener_threshold_value_Entry:
@@ -894,6 +894,7 @@ def start_OCR():
     start_threshold_detection_Button.config(text="终止",command=end_OCR)
     
 def OCR_API(frame):
+    global ocred_num
     if ocr_choice==1:
         text=ocr_reader.ocr(frame)[0]
         if text==None:
@@ -902,13 +903,16 @@ def OCR_API(frame):
             readed_text = [line[1][0] for line in text]
     elif ocr_choice==2:
         readed_text = ocr_reader.readtext(frame, detail=0)
-
+    ocred_num+=1
+    now_frame_Dvalue_Label.config(text = f"OCR进度: {ocred_num} / {meet_frame_num} = {ocred_num/meet_frame_num*100:.2f}%")
     return '\n'.join(readed_text)+'\n'
 
 def Thread_OCR_reading():
-    global frame_now
+    global frame_now,ocred_num
 
     srt.start_write()
+    ocred_num=0
+    now_frame_Dvalue_Label.config(foreground=('#ED10EA'))
 
     #第一行
     previous_line, previous_time = "", 0
@@ -917,11 +921,12 @@ def Thread_OCR_reading():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
-            previous_line = OCR_API(sec_rendering_Cap.read()[1][right_y:left_y, right_x:left_x])
-                
+            previous_line = OCR_API(sec_rendering_Cap.read()[1][right_y_text.get():left_y_text.get(), right_x_text.get():left_x_text.get()])
+
             previous_time = frame_num/fps
             break
 
+    current_line = None
     #中间所有行
     for frame_num in range(frame_now+1,end_num+1):
         if not is_Thread_OCR_reading:
@@ -930,15 +935,16 @@ def Thread_OCR_reading():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
-            current_line = OCR_API(sec_rendering_Cap.read()[1][right_y:left_y, right_x:left_x])
+            current_line = OCR_API(sec_rendering_Cap.read()[1][right_y_text.get():left_y_text.get(), right_x_text.get():left_x_text.get()])
 
             if previous_line != current_line:
                 current_time = frame_num/fps
                 srt.writeLine(previous_time, current_time, previous_line)
-                print(previous_time, current_time)
                 previous_line, previous_time = current_line, current_time
 
     #最后一行
+    if not current_line:
+        current_line = previous_line
     srt.writeLine(previous_time, end_num/fps, current_line)
 
     srt.end_write()
