@@ -16,7 +16,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 
-VERSION = "0.4.4"
+VERSION = "0.5"
 
 #日志
 class log:
@@ -278,7 +278,7 @@ def submit_path(_):
         video_fps_Label.config(text=str(fps)+" FPS")
         video_size_Label.grid(row=0,column=0)
         video_fps_Label.grid(row=0,column=1,padx=8)
-        if frame_height > root_Tk.winfo_screenheight()*4/5 or frame_width > root_Tk.winfo_screenwidth()*4/5:
+        if frame_height > root_Tk.winfo_screenheight()*5/6 or frame_width > root_Tk.winfo_screenwidth()*4/5:
             scale = max(root_Tk.winfo_screenheight()/frame_height, root_Tk.winfo_screenwidth()/(frame_width+200), 1.8)
             new_frame_width,new_frame_height = int(frame_width/scale),int(frame_height/scale)
             frame = cv2.resize(frame,(new_frame_width,new_frame_height))
@@ -624,7 +624,7 @@ class SRT:
     def start_write(self):
         try:
             self.srt = open(self.path, 'a')
-        except  IOError:
+        except IOError:
             log.error("无法打开:"+self.path)
         else:
             self.is_open = True
@@ -638,6 +638,8 @@ class SRT:
     
 
 def findThreshold_start():
+    global end_all_thread
+    end_all_thread=False
 
     #保存配置
     config["DEFAULT"]["language"] = set_language_Entry.get()
@@ -696,13 +698,11 @@ def findThreshold_start():
 
 
 def findThreshold_end():
-    global ocr_reader,srt,is_Listener_threshold_value_Entry,frame_now
-    if hasattr(srt, 'srt'):
-        srt.end_write()
+    global ocr_reader,srt,is_Listener_threshold_value_Entry,frame_now,end_all_thread
 
+    end_all_thread=True
     frame_now=end_num#关闭阈值检测和绘制线程
-    sleep(0.2)
-    is_Listener_threshold_value_Entry=False
+    is_Listener_threshold_value_Entry=False#关闭监听
 
     input_video_Entry.config(state=tk.NORMAL)
     input_video_Button.config(state=tk.NORMAL)
@@ -722,6 +722,8 @@ def findThreshold_end():
     end_frame_num_Entry.config(state=tk.NORMAL)
     set_end_frame_num_Button.config(state=tk.NORMAL)
 
+    restart_threshold_detection_Button.config(state=tk.NORMAL)
+
     threshold_value_input_Entry.config(state=tk.NORMAL)
     transition_frame_num_Label.grid_forget()
     now_frame_Dvalue_Label.grid_forget()
@@ -738,10 +740,14 @@ def findThreshold_end():
     video_frame_Label.bind("<Button-1>", video_progressbar_leftDrag)
     video_frame_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
 
-    start_threshold_detection_Button.config(text="阈值检测",command=findThreshold_start)
+    start_threshold_detection_Button.config(text="阈值检测",command=findThreshold_start,state=tk.NORMAL)
 
-    del srt
-    del ocr_reader
+    if 'srt' in globals():
+        if hasattr(srt, 'srt'):
+            srt.end_write()
+        del srt
+    if 'ocr_reader' in globals():
+        del ocr_reader
 
 
 
@@ -809,22 +815,23 @@ def Thread_compute_difference(frame_front):
         #下一帧
         frame_front = frame_behind
         frame_now+=1
-    frame_now-=1
+    frame_now=end_num
 
     threshold_value_input_Entry.config(state=tk.NORMAL)
 
-    transition_frame_num_Label.grid()
-    now_frame_Dvalue_Label.grid()
-    is_Listener_threshold_value_Entry = True
-    Thread(target=Listener_threshold_value_Entry).start()
-    
-    start_threshold_detection_Button.config(text="OCR",state=tk.NORMAL)
+    if not end_all_thread:
+        transition_frame_num_Label.grid()
+        now_frame_Dvalue_Label.grid()
+        is_Listener_threshold_value_Entry = True
+        Thread(target=Listener_threshold_value_Entry).start()
+        
+        start_threshold_detection_Button.config(text="OCR",state=tk.NORMAL)
 
 
 def Thread_draw_video_progress():
     # global bedraw_frame,frame_now,end_num
     global frame_now,end_num,scale,right_x,right_y,left_x,left_y
-    while True:
+    while not end_all_thread:
         if frame_now>end_num:
             sleep(0.2)
             continue
@@ -868,9 +875,12 @@ def Listener_threshold_value_Entry():
                 now_frame_Dvalue_Label.config(text = f"当前帧差值: {difference_list[frame_now]}", foreground=('#ED10EA' if difference_list[frame_now]>threshold_value_input_Tkint.get() else 'black'))
         sleep(0.5)
 
+
+
 def start_OCR():
     global is_Listener_threshold_value_Entry,frame_now,start_num,end_num,is_Thread_OCR_reading
 
+    restart_threshold_detection_Button.config(state=tk.DISABLED)
     threshold_value_input_Entry.config(state=tk.DISABLED)
     is_Listener_threshold_value_Entry = False
 
@@ -883,16 +893,14 @@ def start_OCR():
 
     Thread(target=Thread_draw_video_progress).start()
 
-    frame_now = end_num#close the Thread_draw_video_progress
-
     def end_OCR():
         global is_Thread_OCR_reading,frame_now
         is_Thread_OCR_reading = False
         ocr_reading.join()
-        frame_now = end_num
         findThreshold_end()
-    start_threshold_detection_Button.config(text="终止",command=end_OCR)
-    
+    start_threshold_detection_Button.config(text="终止",command=lambda:Thread(target=end_OCR).start())
+
+
 def OCR_API(frame):
     global ocred_num
     if ocr_choice==1:
@@ -917,6 +925,9 @@ def Thread_OCR_reading():
     #第一行
     previous_line, previous_time = "", 0
     for frame_num in range(start_num,end_num+1):
+        if not is_Thread_OCR_reading:
+            srt.end_write()
+            return
         if difference_list[frame_num] > threshold_value_input_Tkint.get():
             frame_now = frame_num
 
@@ -930,6 +941,7 @@ def Thread_OCR_reading():
     #中间所有行
     for frame_num in range(frame_now+1,end_num+1):
         if not is_Thread_OCR_reading:
+            srt.end_write()
             return
         if difference_list[frame_num] > threshold_value_input_Tkint.get():
             frame_now = frame_num
