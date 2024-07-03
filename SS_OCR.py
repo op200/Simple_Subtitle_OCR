@@ -4,6 +4,7 @@ from tkinter import ttk
 import cv2
 from PIL import Image, ImageTk
 import numpy as np
+from math import floor
 
 from threading import Thread
 from time import sleep
@@ -16,7 +17,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 
-VERSION = "0.5"
+VERSION = "0.6"
 
 #日志
 class log:
@@ -71,11 +72,11 @@ if not os.path.exists(config_file_pathname) or config.read(config_file_pathname)
 
 
 
-path=str
+path:str
 scale, frame_height, frame_width, new_frame_height, new_frame_width = False, int,int,int,int
 right_x,right_y,left_x,left_y = 0,0,0,0
-fps = int
-difference_list = list
+fps:int
+difference_list:list
 VIDEO_FRAME_IMG_HEIGHT = 6
 
 
@@ -405,39 +406,39 @@ video_fps_Label = ttk.Label(video_info_Frame)
 #选框位置
 draw_box_frame = ttk.Frame(right_Frame)
 
-right_x_text,right_y_text,left_x_text,left_y_text = tk.IntVar(),tk.IntVar(),tk.IntVar(),tk.IntVar()
+left_x_text,left_y_text,right_x_text,right_y_text = tk.IntVar(),tk.IntVar(),tk.IntVar(),tk.IntVar()
 
-draw_box_right_x,draw_box_right_y = ttk.Entry(draw_box_frame,textvariable=right_x_text,width=5),ttk.Entry(draw_box_frame,textvariable=right_y_text,width=5)
 draw_box_left_x,draw_box_left_y = ttk.Entry(draw_box_frame,textvariable=left_x_text,width=5),ttk.Entry(draw_box_frame,textvariable=left_y_text,width=5)
-draw_box_right_x.grid(row=0,column=0,padx=15)
-draw_box_right_y.grid(row=0,column=1,padx=15)
-draw_box_left_x.grid(row=0,column=2,padx=15)
-draw_box_left_y.grid(row=0,column=3,padx=15)
+draw_box_right_x,draw_box_right_y = ttk.Entry(draw_box_frame,textvariable=right_x_text,width=5),ttk.Entry(draw_box_frame,textvariable=right_y_text,width=5)
+draw_box_left_x.grid(row=0,column=0,padx=15)
+draw_box_left_y.grid(row=0,column=1,padx=15)
+draw_box_right_x.grid(row=0,column=2,padx=15)
+draw_box_right_y.grid(row=0,column=3,padx=15)
 
 def enter_to_change_draw_box(_):
     global scale,right_x,right_y,left_x,left_y,difference_list
     
     difference_list = [-1]*frame_count
 
-    if right_x_text.get() < 0:
-        right_x_text.set(0)
-    if right_y_text.get() < 0:
-        right_y_text.set(0)
-    if left_x_text.get() >= frame_width:
-        left_x_text.set(frame_width)
-    if left_y_text.get() >= frame_height:
-        left_y_text.set(frame_height)
+    if left_x_text.get() < 0:
+        left_x_text.set(0)
+    if left_y_text.get() < 0:
+        left_y_text.set(0)
+    if right_x_text.get() >= frame_width:
+        right_x_text.set(frame_width)
+    if right_y_text.get() >= frame_height:
+        right_y_text.set(frame_height)
 
     if scale:
-        right_x = int(right_x_text.get()*new_frame_width/frame_width)
-        right_y = int(right_y_text.get()*new_frame_width/frame_width)
-        left_x = int(left_x_text.get()*new_frame_width/frame_width)
-        left_y = int(left_y_text.get()*new_frame_width/frame_width)
+        right_x = int(left_x_text.get()*new_frame_width/frame_width)
+        right_y = int(left_y_text.get()*new_frame_width/frame_width)
+        left_x = int(right_x_text.get()*new_frame_width/frame_width)
+        left_y = int(right_y_text.get()*new_frame_width/frame_width)
     else:
-        right_x = right_x_text.get()
-        right_y = right_y_text.get()
-        left_x = left_x_text.get()
-        left_y = left_y_text.get()
+        right_x = left_x_text.get()
+        right_y = left_y_text.get()
+        left_x = right_x_text.get()
+        left_y = right_y_text.get()
     
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_now)
     _, frame = main_rendering_Cap.read()
@@ -450,10 +451,10 @@ def enter_to_change_draw_box(_):
     video_review_Label.image = photo
     root_Tk.focus_set()
 
-draw_box_right_x.bind("<Return>", enter_to_change_draw_box)
-draw_box_right_y.bind("<Return>", enter_to_change_draw_box)
 draw_box_left_x.bind("<Return>", enter_to_change_draw_box)
 draw_box_left_y.bind("<Return>", enter_to_change_draw_box)
+draw_box_right_x.bind("<Return>", enter_to_change_draw_box)
+draw_box_right_y.bind("<Return>", enter_to_change_draw_box)
 
 #输出相关控件
 output_setup_frame = ttk.Frame(right_Frame)
@@ -577,15 +578,15 @@ def draw_box():
     cv2.rectangle(frame,(right_x, right_y, left_x-right_x, left_y-right_y), color=(0,255,255),thickness=1)
 
     if scale:
-        right_x_text.set(int(right_x*frame_width/new_frame_width))
-        right_y_text.set(int(right_y*frame_width/new_frame_width))
-        left_x_text.set(int(left_x*frame_width/new_frame_width))
-        left_y_text.set(int(left_y*frame_width/new_frame_width))
+        left_x_text.set(int(right_x*frame_width/new_frame_width))
+        left_y_text.set(int(right_y*frame_width/new_frame_width))
+        right_x_text.set(int(left_x*frame_width/new_frame_width))
+        right_y_text.set(int(left_y*frame_width/new_frame_width))
     else:
-        right_x_text.set(right_x)
-        right_y_text.set(right_y)
-        left_x_text.set(left_x)
-        left_y_text.set(left_y)
+        left_x_text.set(right_x)
+        left_y_text.set(right_y)
+        right_x_text.set(left_x)
+        right_y_text.set(left_y)
 
     photo = ImageTk.PhotoImage(Image.fromarray(frame))
     video_review_Label.config(image=photo)
@@ -608,18 +609,21 @@ video_review_Label.bind("<B1-Motion>", draw_video_review_MouseDrag)
 #OCR执行
 class SRT:
     line_num = 0
+    # half_frame_time:float
 
     def __init__(self, path:str):
         try:
-            f = open(path, 'w')
+            if srt_overwrite_Tkbool.get():
+                f = open(path, 'w')
+            else:
+                f = open(path, 'a')
         except IOError:
             log.error("无法打开:"+path)
         else:
-            if srt_overwrite_Tkbool:
-                f.write("")
             f.close()
             self.path = path
             self.line_num = 1
+        # self.half_frame_time = 1/fps
     
     def start_write(self):
         try:
@@ -630,6 +634,9 @@ class SRT:
             self.is_open = True
 
     def writeLine(self, start_time:float, end_time:float, line:str):
+        # start_time -= self.half_frame_time
+        start_time = floor(start_time*1000)/1000
+        end_time = floor(end_time*1000)/1000
         self.srt.write(f"{self.line_num}\n{int(start_time//3600):02d}:{int(start_time%3600//60):02d}:{int(start_time%60):02d},{int(round(start_time%1*1000)):03d} --> {int(end_time//3600):02d}:{int(end_time%3600//60):02d}:{int(end_time%60):02d},{int(round(end_time%1*1000)):03d}\n{line}\n")
         self.line_num += 1
 
@@ -638,8 +645,11 @@ class SRT:
     
 
 def findThreshold_start():
-    global end_all_thread
+    global end_all_thread,difference_list
     end_all_thread=False
+
+    difference_list = [-1]*frame_count
+        # 这里的想的是重新检测时可以防止二次检测，但没考虑到选框改变的情况，所以暂时选择在重新检测时重置list
 
     #保存配置
     config["DEFAULT"]["language"] = set_language_Entry.get()
@@ -660,10 +670,10 @@ def findThreshold_start():
     input_video_Entry.config(state=tk.DISABLED)
     input_video_Button.config(state=tk.DISABLED)
     frame_now_Entry.config(state=tk.DISABLED)
-    draw_box_right_x.config(state=tk.DISABLED)
-    draw_box_right_y.config(state=tk.DISABLED)
     draw_box_left_x.config(state=tk.DISABLED)
     draw_box_left_y.config(state=tk.DISABLED)
+    draw_box_right_x.config(state=tk.DISABLED)
+    draw_box_right_y.config(state=tk.DISABLED)
 
     set_srtPath_Entry.config(state=tk.DISABLED)
     srt_overwrite_set.config(state=tk.DISABLED)
@@ -707,10 +717,10 @@ def findThreshold_end():
     input_video_Entry.config(state=tk.NORMAL)
     input_video_Button.config(state=tk.NORMAL)
     frame_now_Entry.config(state=tk.NORMAL)
-    draw_box_right_x.config(state=tk.NORMAL)
-    draw_box_right_y.config(state=tk.NORMAL)
     draw_box_left_x.config(state=tk.NORMAL)
     draw_box_left_y.config(state=tk.NORMAL)
+    draw_box_right_x.config(state=tk.NORMAL)
+    draw_box_right_y.config(state=tk.NORMAL)
 
     set_srtPath_Entry.config(state=tk.NORMAL)
     srt_overwrite_set.config(state=tk.NORMAL)
@@ -762,7 +772,8 @@ def threshold_detection(img1,img2,kernel) -> int:
 
 
 def findThreshold_reading():
-    global frame_count,frame_now,start_num,end_num,bedraw_frame
+    # global frame_count,frame_now,start_num,end_num,bedraw_frame
+    global frame_count,frame_now,start_num,end_num
     
     video_review_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
     video_review_Label.bind("<B1-Motion>", draw_video_review_MouseDrag)
@@ -776,13 +787,13 @@ def findThreshold_reading():
     video_frame_Label.bind("<Button-1>", video_progressbar_leftDrag)
     video_frame_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
 
-    if left_x_text.get()<4 or left_y_text.get()<4:
+    if right_x_text.get()<4 or right_y_text.get()<4:
         # sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,0)
         # _, frame = sec_rendering_Cap.read()
-        left_x_text.set(frame_width)
-        left_y_text.set(frame_height)
-        right_x_text.set(0)
-        right_y_text.set(0)
+        right_x_text.set(frame_width)
+        right_y_text.set(frame_height)
+        left_x_text.set(0)
+        left_y_text.set(0)
 
     #获取帧范围
     start_num,end_num = int(start_frame_num_Entry.get()),int(end_frame_num_Entry.get())
@@ -795,20 +806,18 @@ def findThreshold_reading():
     draw_video_frame_Label_range(start_num, end_num, (27, 241, 255))
     flush_video_frame_Label()
 
-    if threshold_value_input_Entry.get() != "0":#阈值不为0 生成差值表
-        bedraw_frame = np.zeros((left_y_text.get()-right_y_text.get(), left_x_text.get()-right_x_text.get(), 3),np.uint8)
-        sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,start_num)
-        frame_now = start_num
-        Thread(target=Thread_compute_difference, args=(bedraw_frame,)).start()
-        Thread(target=Thread_draw_video_progress).start()
-        
+    # if threshold_value_input_Entry.get() != "0":#阈值不为0 生成差值表
+    sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,start_num)
+    frame_now = start_num
+    Thread(target=Thread_compute_difference, args=(np.zeros((right_y_text.get()-left_y_text.get(), right_x_text.get()-left_x_text.get(), 3),np.uint8),)).start()
+    Thread(target=Thread_draw_video_progress).start()
+
 
 def Thread_compute_difference(frame_front):
-    global bedraw_frame,frame_now,is_Listener_threshold_value_Entry
+    global frame_now,is_Listener_threshold_value_Entry
     while frame_now<=end_num:
         _, frame = sec_rendering_Cap.read()
-        frame_behind = frame[right_y_text.get():left_y_text.get(), right_x_text.get():left_x_text.get()]
-        bedraw_frame = frame_behind
+        frame_behind = frame[left_y_text.get():right_y_text.get(), left_x_text.get():right_x_text.get()]
         if difference_list[frame_now]==-1:
             #写入差值
             difference_list[frame_now] = threshold_detection(frame_front, frame_behind, kernel)
@@ -837,15 +846,15 @@ def Thread_draw_video_progress():
             continue
 
         if scale:
-            right_x = int(right_x_text.get()*new_frame_width/frame_width)
-            right_y = int(right_y_text.get()*new_frame_width/frame_width)
-            left_x = int(left_x_text.get()*new_frame_width/frame_width)
-            left_y = int(left_y_text.get()*new_frame_width/frame_width)
+            right_x = int(left_x_text.get()*new_frame_width/frame_width)
+            right_y = int(left_y_text.get()*new_frame_width/frame_width)
+            left_x = int(right_x_text.get()*new_frame_width/frame_width)
+            left_y = int(right_y_text.get()*new_frame_width/frame_width)
         else:
-            right_x = right_x_text.get()
-            right_y = right_y_text.get()
-            left_x = left_x_text.get()
-            left_y = left_y_text.get()
+            right_x = left_x_text.get()
+            right_y = left_y_text.get()
+            left_x = right_x_text.get()
+            left_y = right_y_text.get()
         
         jump_to_frame()
 
@@ -923,7 +932,8 @@ def Thread_OCR_reading():
     now_frame_Dvalue_Label.config(foreground=('#ED10EA'))
 
     #第一行
-    previous_line, previous_time = "", 0
+    previous_line:str
+    previous_time:float
     for frame_num in range(start_num,end_num+1):
         if not is_Thread_OCR_reading:
             srt.end_write()
@@ -932,7 +942,7 @@ def Thread_OCR_reading():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
-            previous_line = OCR_API(sec_rendering_Cap.read()[1][right_y_text.get():left_y_text.get(), right_x_text.get():left_x_text.get()])
+            previous_line = OCR_API(sec_rendering_Cap.read()[1][left_y_text.get():right_y_text.get(), left_x_text.get():right_x_text.get()])
 
             previous_time = frame_num/fps
             break
@@ -947,7 +957,7 @@ def Thread_OCR_reading():
             frame_now = frame_num
 
             sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_num)
-            current_line = OCR_API(sec_rendering_Cap.read()[1][right_y_text.get():left_y_text.get(), right_x_text.get():left_x_text.get()])
+            current_line = OCR_API(sec_rendering_Cap.read()[1][left_y_text.get():right_y_text.get(), left_x_text.get():right_x_text.get()])
 
             if previous_line != current_line:
                 current_time = frame_num/fps
