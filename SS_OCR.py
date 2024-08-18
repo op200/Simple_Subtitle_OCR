@@ -16,26 +16,29 @@ def hyperlink_jump(hyperlink:str):
     webbrowser.open(hyperlink)
 import shutil
 
-
-VERSION = "0.6"
+PROGRAM_NAME = "Simple Subtitle OCR"
+VERSION = "0.6.1"
+HOME_LINK = "https://github.com/op200/Simple_Subtitle_OCR"
 
 #日志
 class log:
     @staticmethod
     def output(info:str):
-        log_text.insert(tk.END,info+'\n')
+        log_Text.insert(tk.END,info+'\n')
+        log_Text.see(tk.END)
+        print(info)
 
     @staticmethod
     def error(info:str):
-        log.output(f"[ERROR]{info}")
+        log.output(f"[ERROR] {info}")
 
     @staticmethod
     def warning(info:str):
-        log.output(f"[WARNING]{info}")
+        log.output(f"[WARNING] {info}")
 
     @staticmethod
     def info(info:str):
-        log.output(f"[INFO]{info}")
+        log.output(f"[INFO] {info}")
 
 
 import platform
@@ -70,6 +73,17 @@ if not os.path.exists(config_file_pathname) or config.read(config_file_pathname)
         config.write(configfile)
 
 
+def save_config():
+    config["DEFAULT"]["language"] = set_language_Entry.get()
+    config["DEFAULT"]["srt_path"] = set_srtPath_Entry.get()
+    config["DEFAULT"]["srt_overwrite"] = str(1 if srt_overwrite_Tkbool.get() else 0)
+    config["DEFAULT"]["use_gpu"] = str(1 if open_gpu_Tkbool.get() else 0)
+    
+    try:
+        with open(config_file_pathname, 'w') as configfile:
+            config.write(configfile)
+    except FileNotFoundError:
+        pass
 
 
 path:str
@@ -81,7 +95,11 @@ VIDEO_FRAME_IMG_HEIGHT = 6
 
 
 root_Tk = tk.Tk()
-root_Tk.title("Simple Subtitle OCR")
+root_Tk.title(PROGRAM_NAME)
+def root_Tk_Close():
+    save_config()
+    root_Tk.destroy()
+root_Tk.protocol("WM_DELETE_WINDOW", root_Tk_Close)
 
 
 #样式
@@ -131,20 +149,19 @@ def remove_config_dir():
         log.info("已删除"+config_dir)
     else:
         log.error("未找到配置文件目录"+config_dir)
-menu_setting_Menu.add_command(label="清除配置文件",command=lambda:shutil.rmtree(config_dir))
+menu_setting_Menu.add_command(label="清除配置文件",command=remove_config_dir)
 
 
 def create_help_about_Toplevel():
     about_Toplevel = tk.Toplevel(root_Tk,width=20,height=15)
-    about_Toplevel.geometry('320x180')
+    about_Toplevel.geometry('320x160')
     about_Toplevel.title("About")
     frame = ttk.Frame(about_Toplevel)
     frame.pack(expand=True)
-    ttk.Label(frame,text=f"Simple Subtitle OCR {VERSION}\n\n").pack()
+    ttk.Label(frame,text=f"{PROGRAM_NAME}  v{VERSION}\n\n").pack()
 
-    hyperlink="https://github.com/op200/Simple_Subtitle_OCR"
-    hyperlink_Label = ttk.Label(frame,text=hyperlink, cursor="hand2", foreground="blue", font=underline_font)
-    hyperlink_Label.bind("<Button-1>",lambda _:hyperlink_jump(hyperlink))
+    hyperlink_Label = ttk.Label(frame,text=HOME_LINK, cursor="hand2", foreground="blue", font=underline_font)
+    hyperlink_Label.bind("<Button-1>",lambda _:hyperlink_jump(HOME_LINK))
     hyperlink_Label.pack()
     
 menu_help_Menu = tk.Menu(menu_Menu, tearoff=0)
@@ -198,7 +215,7 @@ frame_now = 0
 def jump_to_frame():
     global scale,frame_now,frame_count
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_now)
-    _, frame = main_rendering_Cap.read()
+    frame = main_rendering_Cap.read()[1]
     try:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     except cv2.error:
@@ -280,7 +297,7 @@ def submit_path(_):
         video_size_Label.grid(row=0,column=0)
         video_fps_Label.grid(row=0,column=1,padx=8)
         if frame_height > root_Tk.winfo_screenheight()*5/6 or frame_width > root_Tk.winfo_screenwidth()*4/5:
-            scale = max(root_Tk.winfo_screenheight()/frame_height, root_Tk.winfo_screenwidth()/(frame_width+200), 1.8)
+            scale = max((1.2*frame_height+100)/root_Tk.winfo_screenheight(), (1.2*frame_width+500)/root_Tk.winfo_screenwidth(), 1.5)
             new_frame_width,new_frame_height = int(frame_width/scale),int(frame_height/scale)
             frame = cv2.resize(frame,(new_frame_width,new_frame_height))
             log.info(f"视频画幅过大 预览画面已缩小(1/{scale:.2f}-->{new_frame_width}x{new_frame_height})")
@@ -377,7 +394,12 @@ frame_count_Label.grid(row=0,column=1)
 frame_range_Frame = ttk.Frame(frame_num_Frame)
 frame_range_Frame.grid(row=1,column=0)
 
-def set_start_frame_num_Click(frame1_Tkint:tk.IntVar, frame2_Tkint:tk.IntVar):
+def set_start_frame_num_Click(frame1_Tkint:tk.IntVar, frame2_Tkint:tk.IntVar, flush_frame_now:int=None):
+    if flush_frame_now:
+        global frame_now
+        frame_now = flush_frame_now
+        jump_to_frame()
+
     frame1_Tkint.set(frame_now_Tkint.get())
     if start_frame_num_Tkint.get() > end_frame_num_Tkint.get():
         frame2_Tkint.set(frame1_Tkint.get())
@@ -386,12 +408,14 @@ def set_start_frame_num_Click(frame1_Tkint:tk.IntVar, frame2_Tkint:tk.IntVar):
 
 start_frame_num_Tkint = tk.IntVar()
 start_frame_num_Entry = ttk.Entry(frame_range_Frame,width=11,textvariable=start_frame_num_Tkint)
+start_frame_num_Entry.bind("<Return>", lambda _:set_start_frame_num_Click(start_frame_num_Tkint,end_frame_num_Tkint,start_frame_num_Tkint.get()))
 set_start_frame_num_Button = ttk.Button(frame_range_Frame,text="设为开始帧",command=lambda:set_start_frame_num_Click(start_frame_num_Tkint,end_frame_num_Tkint))
 start_frame_num_Entry.grid(row=0,column=0,padx=14,pady=5)
 set_start_frame_num_Button.grid(row=1,column=0)
 
 end_frame_num_Tkint = tk.IntVar()
 end_frame_num_Entry = ttk.Entry(frame_range_Frame,width=11,textvariable=end_frame_num_Tkint)
+end_frame_num_Entry.bind("<Return>", lambda _:set_start_frame_num_Click(end_frame_num_Tkint,start_frame_num_Tkint,end_frame_num_Tkint.get()))
 set_end_frame_num_Button = ttk.Button(frame_range_Frame,text="设为结束帧",command=lambda:set_start_frame_num_Click(end_frame_num_Tkint,start_frame_num_Tkint))
 end_frame_num_Entry.grid(row=0,column=1,padx=14)
 set_end_frame_num_Button.grid(row=1,column=1)
@@ -462,8 +486,8 @@ output_setup_frame.grid(row=5,column=0)
 
 set_srt_Frame = ttk.Frame(output_setup_frame)
 
-set_srtPath_title = ttk.Label(set_srt_Frame,text="SRT位置:")
-set_srtPath_title.grid(row=0,column=0)
+set_srtPath_Label = ttk.Label(set_srt_Frame,text="SRT位置:")
+set_srtPath_Label.grid(row=0,column=0)
 
 set_srtPath_Entry = ttk.Entry(set_srt_Frame)
 set_srtPath_Entry.insert(0,config.get("DEFAULT","srt_path"))
@@ -529,11 +553,11 @@ log_Frame = ttk.Frame(right_Frame)
 log_vScrollbar = ttk.Scrollbar(log_Frame)
 log_vScrollbar.grid(row=0,column=1,sticky='ns')
 
-log_text = tk.Text(log_Frame,width=45,height=10, yscrollcommand=log_vScrollbar.set)
-log_text.grid(row=0,column=0,sticky='nsew')
+log_Text = tk.Text(log_Frame,width=45,height=10, yscrollcommand=log_vScrollbar.set)
+log_Text.grid(row=0,column=0,sticky='nsew')
 
 
-log_vScrollbar.config(command=log_text.yview)
+log_vScrollbar.config(command=log_Text.yview)
 #读取配置
 config.read(config_file_pathname)
 if config.get("DEFAULT","ocr") == "PaddleOCR":
@@ -651,14 +675,7 @@ def findThreshold_start():
     difference_list = [-1]*frame_count
         # 这里的想的是重新检测时可以防止二次检测，但没考虑到选框改变的情况，所以暂时选择在重新检测时重置list
 
-    #保存配置
-    config["DEFAULT"]["language"] = set_language_Entry.get()
-    config["DEFAULT"]["srt_path"] = set_srtPath_Entry.get()
-    config["DEFAULT"]["srt_overwrite"] = str(1 if srt_overwrite_Tkbool.get() else 0)
-    config["DEFAULT"]["use_gpu"] = str(1 if open_gpu_Tkbool.get() else 0)
-	
-    with open(config_file_pathname, 'w') as configfile:
-        config.write(configfile)
+    save_config()
 
     global ocr_reader,srt
     if ocr_choice==1:
@@ -972,5 +989,6 @@ def Thread_OCR_reading():
     srt.end_write()
 
     start_threshold_detection_Button.config(text="完成",command=findThreshold_end)
+
 
 root_Tk.mainloop()

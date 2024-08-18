@@ -9,7 +9,9 @@ from math import floor
 import os
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
-VERSION = "0.6"
+PROGRAM_NAME = "Simple Subtitle OCR (CLI)"
+VERSION = "0.6.1"
+HOME_LINK = "https://github.com/op200/Simple_Subtitle_OCR"
 
 from typing import Callable
 #日志
@@ -17,9 +19,8 @@ class log:
     log_level = 0
 
     @staticmethod
-    def output(info:object, level:int=140):
-        if level>log.log_level:
-            print(info)
+    def output(info:object):
+        print(info)
 
     @staticmethod
     def exit():
@@ -50,13 +51,26 @@ import sys
 
 cmds = sys.argv[1:]
 
+input_path:str = None
+start_frame:int = 0
+end_frame:int = None # = the last frame of the video
+select_box:tuple = (0,0,0,0)
+srt_path:str = ".\SS_OCR_CLI-output.srt"
+overwrite_srt:bool = True
+language:tuple = ("ch",)
+use_gpu:bool = False
+threshold:int = 0
+ocr_tool_name:str = "paddleocr"
+fps_force:float = None
+
+
 for cmd in cmds:
     if cmd=="-v" or cmd=="-version":
-        log.output(f"Simple Subtitle OCR (CLI)\nVersion: {VERSION}\nhttps://github.com/op200/Simple_Subtitle_OCR")
+        log.output(f"{PROGRAM_NAME}\nVersion: {VERSION}\n{HOME_LINK}")
         exit()
     if cmd=="-h" or cmd=="-help":
-        print("""
-Simple Subtitle OCR (CLI) help:
+        print(f"""
+{PROGRAM_NAME} help:
 
 -h/-help
     print help
@@ -65,12 +79,12 @@ Simple Subtitle OCR (CLI) help:
     print version
 
 -i/-input <string>
-    input video or img sequence 's path
-    default: None
+    input the path of a video or img sequence
+    default: {input_path}
 
 -sf <int in [0:]>
     set start frame
-    default: 0
+    default: {start_frame}
 
 -ef <int in [sf:]>
     set end frame
@@ -90,7 +104,7 @@ Simple Subtitle OCR (CLI) help:
 
 -ow <bool>
     is it overwrite srt
-    default: True
+    default: {overwrite_srt}
 
 -l <string>
     set language
@@ -99,22 +113,22 @@ Simple Subtitle OCR (CLI) help:
 
 -gpu <bool>
     is it use gpu
-    default: False
+    default: {use_gpu}
 
 -th <int>
     set the threshold value
     if th < 0, threshold detection will be skipped
-    default: 0
+    default: {threshold}
 
 -ocr <string>
     set OCR tool's name
     support: "paddleocr", "easyocr"
-    default: "paddleocr"
+    default: "{ocr_tool_name}"
 
 -fps <float>
     force fps
-    it can change the subtitle's time stamp
-    default: None
+    it can change the subtitle's time stamp when it isn't None
+    default: {fps_force}
 
 -loglevel <int>
     log level
@@ -126,20 +140,8 @@ Simple Subtitle OCR (CLI) help:
     if it > 120, all  ERROR   will not be print
     if it > 140, all  logs    will not be print
     default: 0
-              """)
+        """)
         exit()
-
-input_path:str = None
-start_frame:int = 0
-end_frame:int = None # = the last frame of the video
-select_box:tuple = (0,0,0,0)
-srt_path:str = ".\SS_OCR_CLI-output.srt"
-overwrite_srt:bool = True
-language:tuple = ("ch",)
-use_gpu:bool = False
-threshold:int = 0
-ocr_tool_name:str = "paddleocr"
-fps_force:float = None
 
 for i in range(len(cmds)):
     # input
