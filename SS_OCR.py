@@ -17,7 +17,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 PROGRAM_NAME = "Simple Subtitle OCR"
-VERSION = "0.6.1"
+VERSION = "0.7"
 HOME_LINK = "https://github.com/op200/Simple_Subtitle_OCR"
 
 #日志
@@ -67,7 +67,11 @@ if not os.path.exists(config_file_pathname) or config.read(config_file_pathname)
         "language" : "ch",
         "srt_path" : r".\output.srt",
         "srt_overwrite" : 0,
-        "use_gpu" : 0
+        "use_gpu" : 0,
+        "set_filter" : 0,
+        "retain_color_tolerance" : 40,
+        "retain_color1" : "#ffffff",
+        "retain_color2" : "#000000"
     }
     with open(config_file_pathname, 'w') as configfile:
         config.write(configfile)
@@ -76,8 +80,12 @@ if not os.path.exists(config_file_pathname) or config.read(config_file_pathname)
 def save_config():
     config["DEFAULT"]["language"] = set_language_Entry.get()
     config["DEFAULT"]["srt_path"] = set_srtPath_Entry.get()
-    config["DEFAULT"]["srt_overwrite"] = str(1 if srt_overwrite_Tkbool.get() else 0)
-    config["DEFAULT"]["use_gpu"] = str(1 if open_gpu_Tkbool.get() else 0)
+    config["DEFAULT"]["srt_overwrite"] = "1" if srt_overwrite_Tkbool.get() else "0"
+    config["DEFAULT"]["use_gpu"] = "1" if open_gpu_Tkbool.get() else "0"
+    config["DEFAULT"]["set_filter"] = "1" if set_filter_Tkbool.get() else "0"
+    config["DEFAULT"]["retain_color_tolerance"] = str(retain_color_tolerance_Tkint.get())
+    config["DEFAULT"]["retain_color1"] = retain_color1_Entry.get()
+    config["DEFAULT"]["retain_color2"] = retain_color2_Entry.get()
     
     try:
         with open(config_file_pathname, 'w') as configfile:
@@ -126,7 +134,7 @@ def switch_to_paddleocr():
     log.info("切换至PaddleOCR")
 
 def switch_to_EasyOCR():
-    global config
+    global config,ocr_choice
     if os.path.exists(config_file_pathname):
         config["DEFAULT"]["ocr"]="EasyOCR"
         config["DEFAULT"]["language"]="ch_sim,en"
@@ -211,6 +219,28 @@ video_frame_Label = ttk.Label(left_Frame)
 frame_count = 0
 frame_now = 0
 
+def img_filter(frame:cv2.typing.MatLike):
+    tolerance = retain_color_tolerance_Tkint.get()
+    color1 = tuple(int(retain_color1_Entry.get().lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+    color2 = tuple(int(retain_color2_Entry.get().lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+    # 定义颜色上下界
+    lower1 = np.array([max(0, (color1[0] - tolerance)), max(0, (color1[1] - tolerance)), max(0, (color1[2] - tolerance))])
+    upper1 = np.array([min(255, (color1[0] + tolerance)), min(255, (color1[1] + tolerance)), min(255, (color1[2] + tolerance))])
+
+    lower2 = np.array([max(0, (color2[0] - tolerance)), max(0, (color2[1] - tolerance)), max(0, (color2[2] - tolerance))])
+    upper2 = np.array([min(255, (color2[0] + tolerance)), min(255, (color2[1] + tolerance)), min(255, (color2[2] + tolerance))])
+    # 创建掩码
+    mask1 = cv2.inRange(frame, lower1, upper1)
+    mask2 = cv2.inRange(frame, lower2, upper2)
+    # 合并掩码
+    mask = cv2.bitwise_or(mask1, mask2)
+    mask = cv2.bitwise_not(mask)
+    
+    purple = (142, 12, 255)
+    frame[mask > 0] = purple
+
+    return frame
+
 #跳转当前帧
 def jump_to_frame():
     global scale,frame_now,frame_count
@@ -221,6 +251,8 @@ def jump_to_frame():
     except cv2.error:
         log.warning(f"[{frame_now}]该帧无法读取(应检查视频封装)")
     else:
+        if set_filter_Tkbool.get():
+            frame = img_filter(frame)
         #重新绘制选框
         if scale:
             frame = cv2.resize(frame,(new_frame_width,new_frame_height))
@@ -275,7 +307,8 @@ def submit_path(_):
     #渲染控件
     frame_num_Frame.grid(row=2,column=0)
 
-    draw_box_frame.grid(row=4,column=0,pady=15)
+    draw_box_Frame.grid(row=4,column=0,pady=15)
+    set_filter_Frame.grid(row=6,column=0)
     ocr_set_Frame.grid(row=7,column=0,pady=15)
 
     set_srt_Frame.grid(row=0,column=0,pady=10)
@@ -428,12 +461,12 @@ video_size_Label = ttk.Label(video_info_Frame)
 video_fps_Label = ttk.Label(video_info_Frame)
 
 #选框位置
-draw_box_frame = ttk.Frame(right_Frame)
+draw_box_Frame = ttk.Frame(right_Frame)
 
 left_x_text,left_y_text,right_x_text,right_y_text = tk.IntVar(),tk.IntVar(),tk.IntVar(),tk.IntVar()
 
-draw_box_left_x,draw_box_left_y = ttk.Entry(draw_box_frame,textvariable=left_x_text,width=5),ttk.Entry(draw_box_frame,textvariable=left_y_text,width=5)
-draw_box_right_x,draw_box_right_y = ttk.Entry(draw_box_frame,textvariable=right_x_text,width=5),ttk.Entry(draw_box_frame,textvariable=right_y_text,width=5)
+draw_box_left_x,draw_box_left_y = ttk.Entry(draw_box_Frame,textvariable=left_x_text,width=5),ttk.Entry(draw_box_Frame,textvariable=left_y_text,width=5)
+draw_box_right_x,draw_box_right_y = ttk.Entry(draw_box_Frame,textvariable=right_x_text,width=5),ttk.Entry(draw_box_Frame,textvariable=right_y_text,width=5)
 draw_box_left_x.grid(row=0,column=0,padx=15)
 draw_box_left_y.grid(row=0,column=1,padx=15)
 draw_box_right_x.grid(row=0,column=2,padx=15)
@@ -481,10 +514,10 @@ draw_box_right_x.bind("<Return>", enter_to_change_draw_box)
 draw_box_right_y.bind("<Return>", enter_to_change_draw_box)
 
 #输出相关控件
-output_setup_frame = ttk.Frame(right_Frame)
-output_setup_frame.grid(row=5,column=0)
+output_setup_Frame = ttk.Frame(right_Frame)
+output_setup_Frame.grid(row=5,column=0)
 
-set_srt_Frame = ttk.Frame(output_setup_frame)
+set_srt_Frame = ttk.Frame(output_setup_Frame)
 
 set_srtPath_Label = ttk.Label(set_srt_Frame,text="SRT位置:")
 set_srtPath_Label.grid(row=0,column=0)
@@ -499,7 +532,7 @@ srt_overwrite_set = ttk.Checkbutton(set_srt_Frame,text="覆写SRT",var=srt_overw
 srt_overwrite_set.grid(row=0,column=2,padx=10)
 
 
-set_ocr_Frame = ttk.Frame(output_setup_frame)
+set_ocr_Frame = ttk.Frame(output_setup_Frame)
 
 set_language_title_Label = ttk.Label(set_ocr_Frame,text="OCR语言:")
 set_language_title_Label.grid(row=0,column=1)
@@ -512,6 +545,78 @@ open_gpu_Tkbool = tk.BooleanVar()
 open_gpu_Tkbool.set(bool(int(config.get("DEFAULT","use_gpu"))))
 open_gpu_set_Checkbutton = ttk.Checkbutton(set_ocr_Frame,text="使用GPU",var=open_gpu_Tkbool)
 open_gpu_set_Checkbutton.grid(row=0,column=3,padx=10)
+
+
+#filter相关控件
+set_filter_Frame = ttk.Frame(right_Frame)
+
+set_filter_Tkbool = tk.BooleanVar()
+set_filter_Tkbool.set(bool(int(config.get("DEFAULT","set_filter"))))
+def set_filter_set_event():
+    if set_filter_Tkbool.get():
+        retain_color_tolerance_Entry.config(state=tk.NORMAL)
+        retain_color1_Entry.config(state=tk.NORMAL)
+        retain_color2_Entry.config(state=tk.NORMAL)
+    else:
+        retain_color_tolerance_Entry.config(state=tk.DISABLED)
+        retain_color1_Entry.config(state=tk.DISABLED)
+        retain_color2_Entry.config(state=tk.DISABLED)
+    jump_to_frame()
+set_filter_set = ttk.Checkbutton(set_filter_Frame,text="启用滤镜",var=set_filter_Tkbool,command=set_filter_set_event)
+set_filter_set.grid(row=0,column=0)
+
+retain_color_tolerance_Frame = ttk.Frame(set_filter_Frame)
+retain_color_tolerance_Frame.grid(row=0,column=1,padx=5)
+retain_color_tolerance_Label = ttk.Label(retain_color_tolerance_Frame,text="容差")
+retain_color_tolerance_Label.grid(row=0,column=0)
+retain_color_tolerance_Tkint = tk.IntVar(value=int(config.get("DEFAULT","retain_color_tolerance")))
+retain_color_tolerance_Entry = ttk.Entry(retain_color_tolerance_Frame,textvariable=retain_color_tolerance_Tkint,width=4)
+retain_color_tolerance_Entry.grid(row=0,column=1)
+retain_color_tolerance_Entry.bind("<Return>", lambda _:jump_to_frame())
+
+set_color_Frame = ttk.Frame(set_filter_Frame)
+set_color_Frame.grid(row=0,column=2)
+
+retain_color1_preview_Canvas = tk.Canvas(set_color_Frame, width=10, height=10, borderwidth=0,  highlightthickness=1, highlightbackground='gray')
+retain_color1_preview_Canvas.grid(row=0,column=0,padx=5)
+
+retain_color1_Entry = ttk.Entry(set_color_Frame,width=8)
+retain_color1_Entry.insert(0,config.get("DEFAULT","retain_color1"))
+retain_color1_Entry.grid(row=0,column=1)
+
+retain_color2_preview_Canvas = tk.Canvas(set_color_Frame, width=10, height=10, borderwidth=0,  highlightthickness=1, highlightbackground='gray')
+retain_color2_preview_Canvas.grid(row=0,column=2,padx=5)
+
+retain_color2_Entry = ttk.Entry(set_color_Frame,width=8)
+retain_color2_Entry.insert(0,config.get("DEFAULT","retain_color2"))
+retain_color2_Entry.grid(row=0,column=3)
+
+if set_filter_Tkbool.get():
+    retain_color_tolerance_Entry.config(state=tk.NORMAL)
+    retain_color1_Entry.config(state=tk.NORMAL)
+    retain_color2_Entry.config(state=tk.NORMAL)
+else:
+    retain_color_tolerance_Entry.config(state=tk.DISABLED)
+    retain_color1_Entry.config(state=tk.DISABLED)
+    retain_color2_Entry.config(state=tk.DISABLED)
+
+
+def enter_to_draw_retain_color(_):
+    try:
+        retain_color1_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color1_Entry.get())
+        retain_color2_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color2_Entry.get())
+    except:
+        log.error("颜色格式错误")
+    jump_to_frame()
+retain_color1_Entry.bind("<Return>", enter_to_draw_retain_color)
+retain_color2_Entry.bind("<Return>", enter_to_draw_retain_color)
+
+try:
+    retain_color1_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color1_Entry.get())
+    retain_color2_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color2_Entry.get())
+except:
+    log.error("颜色格式错误")
+
 
 
 ocr_set_Frame = ttk.Frame(right_Frame)
@@ -581,8 +686,10 @@ start_x,start_y,end_x,end_y = 0,0,0,0
 def draw_box():
     global scale,frame_now,start_x,start_y,end_x,end_y,right_x,right_y,left_x,left_y
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,frame_now)
-    _, frame = main_rendering_Cap.read()
+    frame = main_rendering_Cap.read()[1]
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    if set_filter_Tkbool.get():
+        frame = img_filter(frame)
 
     right_x = min(start_x,end_x)
     right_y = min(start_y,end_y)
@@ -697,6 +804,11 @@ def findThreshold_start():
     set_language_Entry.config(state=tk.DISABLED)
     open_gpu_set_Checkbutton.config(state=tk.DISABLED)
 
+    set_filter_set.config(state=tk.DISABLED)
+    retain_color_tolerance_Label.config(state=tk.DISABLED)
+    retain_color1_Entry.config(state=tk.DISABLED)
+    retain_color2_Entry.config(state=tk.DISABLED)
+
     start_frame_num_Entry.config(state=tk.DISABLED)
     set_start_frame_num_Button.config(state=tk.DISABLED)
     end_frame_num_Entry.config(state=tk.DISABLED)
@@ -743,6 +855,11 @@ def findThreshold_end():
     srt_overwrite_set.config(state=tk.NORMAL)
     set_language_Entry.config(state=tk.NORMAL)
     open_gpu_set_Checkbutton.config(state=tk.NORMAL)
+
+    set_filter_set.config(state=tk.NORMAL)
+    retain_color_tolerance_Label.config(state=tk.NORMAL)
+    retain_color1_Entry.config(state=tk.NORMAL)
+    retain_color2_Entry.config(state=tk.NORMAL)
 
     start_frame_num_Entry.config(state=tk.NORMAL)
     set_start_frame_num_Button.config(state=tk.NORMAL)
@@ -833,8 +950,8 @@ def findThreshold_reading():
 def Thread_compute_difference(frame_front):
     global frame_now,is_Listener_threshold_value_Entry
     while frame_now<=end_num:
-        _, frame = sec_rendering_Cap.read()
-        frame_behind = frame[left_y_text.get():right_y_text.get(), left_x_text.get():right_x_text.get()]
+        frame = sec_rendering_Cap.read()[1][left_y_text.get():right_y_text.get(), left_x_text.get():right_x_text.get()]
+        frame_behind = img_filter(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         if difference_list[frame_now]==-1:
             #写入差值
             difference_list[frame_now] = threshold_detection(frame_front, frame_behind, kernel)
@@ -929,6 +1046,10 @@ def start_OCR():
 
 def OCR_API(frame):
     global ocred_num
+
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame = img_filter(frame)
+
     if ocr_choice==1:
         text=ocr_reader.ocr(frame)[0]
         if text==None:
