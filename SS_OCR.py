@@ -17,7 +17,7 @@ def hyperlink_jump(hyperlink:str):
 import shutil
 
 PROGRAM_NAME = "Simple Subtitle OCR"
-VERSION = "0.7"
+VERSION = "0.7.1"
 HOME_LINK = "https://github.com/op200/Simple_Subtitle_OCR"
 
 #日志
@@ -375,8 +375,16 @@ def submit_path(_):
         video_frame_Label.grid(row=3,column=0)
 
     else:
-        log.error("无法打开"+path)
-    
+        log.error("无法打开视频"+path)
+
+
+    try:
+        retain_color1_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color1_Entry.get())
+        retain_color2_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color2_Entry.get())
+    except:
+        log.error("颜色格式错误")
+
+
     root_Tk.focus_set()
 
 #右侧控件
@@ -611,12 +619,6 @@ def enter_to_draw_retain_color(_):
 retain_color1_Entry.bind("<Return>", enter_to_draw_retain_color)
 retain_color2_Entry.bind("<Return>", enter_to_draw_retain_color)
 
-try:
-    retain_color1_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color1_Entry.get())
-    retain_color2_preview_Canvas.create_rectangle(-40, -40, 40, 40, fill=retain_color2_Entry.get())
-except:
-    log.error("颜色格式错误")
-
 
 
 ocr_set_Frame = ttk.Frame(right_Frame)
@@ -670,13 +672,13 @@ if config.get("DEFAULT","ocr") == "PaddleOCR":
     try:
         from paddleocr import PaddleOCR
     except ModuleNotFoundError:
-        log.error("未能载入库:paddleocr")
+        log.error("未安装库: paddleocr")
 elif config.get("DEFAULT","ocr") == "EasyOCR":
     ocr_choice = 2
     try:
         import easyocr
     except ModuleNotFoundError:
-        log.error("未能载入库:easyocr")
+        log.error("未安装库: easyocr")
 
 
 
