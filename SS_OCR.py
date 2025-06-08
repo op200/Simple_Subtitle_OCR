@@ -4,11 +4,11 @@ from tkinter import ttk
 from tkinter import font as tkfont
 from math import floor
 from threading import Thread
-from time import sleep
+import time
 import os
 import platform
 import shutil
-from typing import Literal
+from typing import Literal, Callable
 import webbrowser
 import configparser
 
@@ -18,7 +18,7 @@ import numpy as np
 
 
 PROGRAM_NAME = "Simple Subtitle OCR"
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 HOME_LINK = "https://github.com/op200/Simple_Subtitle_OCR"
 
 
@@ -26,8 +26,11 @@ HOME_LINK = "https://github.com/op200/Simple_Subtitle_OCR"
 class log:
     @staticmethod
     def output(info: str):
-        log_Text.insert(tk.END, info + "\n")
-        log_Text.see(tk.END)
+        try:
+            log_Text.insert(tk.END, info + "\n")
+            log_Text.see(tk.END)
+        except NameError:
+            pass
         print(info)
 
     @staticmethod
@@ -49,11 +52,23 @@ def hyperlink_jump(hyperlink: str):
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
+windows_scaling: float = 1
 if os.name == "nt":
     try:
         ctypes.windll.user32.SetProcessDPIAware()
     except Exception:
         log.warning("Windows DPI Aware failed")
+
+    try:
+        # 获取系统 DPI 缩放比例（默认 96 DPI 是 100%）
+        user32 = ctypes.windll.user32
+        hdc = user32.GetDC(0)
+        LOGPIXELSX = 88  # 表示水平 DPI
+        windows_scaling = ctypes.windll.gdi32.GetDeviceCaps(hdc, LOGPIXELSX) / 96.0
+        user32.ReleaseDC(0, hdc)
+    except Exception:
+        log.warning("Get Windows scaling failed")
+
 
 # 判断系统对应路径
 os_type = platform.system()
@@ -331,10 +346,16 @@ def img_filter(frame: cv2.typing.MatLike) -> cv2.typing.MatLike:
 
 
 # 跳转当前帧
-def jump_to_frame():
+def jump_to_frame(new_frame: cv2.typing.MatLike | None = None):
     global scale, frame_now, frame_count
-    main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_now)
-    frame = main_rendering_Cap.read()[1]
+
+    frame: cv2.typing.MatLike
+    if new_frame is None:
+        main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_now)
+        frame = main_rendering_Cap.read()[1]
+    else:
+        frame = new_frame
+
     try:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     except cv2.error:
@@ -526,7 +547,13 @@ def submit_path(_):
 input_video_Frame = ttk.Frame(right_Frame)
 input_video_Frame.grid(row=1, column=0, pady=15)
 
-video_path_review_Label = ttk.Label(input_video_Frame, text="输入视频路径名")
+video_path_review_Label = ttk.Label(
+    input_video_Frame,
+    text="输入视频路径名",
+    width=50,
+    anchor="center",
+    wraplength=350 * windows_scaling,
+)
 video_path_review_Label.grid(row=1, column=0, columnspan=2, pady=8)
 
 input_video_Entry = ttk.Entry(input_video_Frame, width=40)
@@ -854,7 +881,7 @@ threshold_value_input_title_Label = ttk.Label(
     threshold_value_input_Frame, text="转场检测阈值:"
 )
 threshold_value_input_title_Label.grid(row=0, column=0)
-threshold_value_input_Tkint = tk.IntVar(value=-1)
+threshold_value_input_Tkint = tk.IntVar(value=-2)
 threshold_value_input_Entry = ttk.Entry(
     threshold_value_input_Frame, width=5, textvariable=threshold_value_input_Tkint
 )
@@ -1046,6 +1073,20 @@ class SRT:
 
     def end_write(self):
         self.srt.close()
+
+
+def timer(name: str | None = None):
+    def decorator(func: Callable):
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            func(*args, **kwargs)
+            log.info(
+                f"{'' if name is None else f'{name} '}耗时: {time.time() - start_time}s"
+            )
+
+        return wrapper
+
+    return decorator
 
 
 def findThreshold_start():
@@ -1273,22 +1314,28 @@ def findThreshold_reading():
     Thread(target=Thread_draw_video_progress, daemon=True).start()
 
 
+@timer("阈值检测")
 def Thread_compute_difference(frame_front: cv2.typing.MatLike):
     global frame_now, is_Listener_threshold_value_Entry
-    while frame_now <= end_num:
-        frame = sec_rendering_Cap.read()[1][
-            left_y_text.get() : right_y_text.get(),
-            left_x_text.get() : right_x_text.get(),
-        ]
-        frame_behind = img_filter(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        if difference_list[frame_now] == -1:
-            # 写入差值
-            difference_list[frame_now] = threshold_detection(
-                frame_front, frame_behind, kernel
-            )
-        # 下一帧
-        frame_front = frame_behind
-        frame_now += 1
+
+    if threshold_value_input_Tkint.get() >= -1:
+        while frame_now <= end_num:
+            frame = sec_rendering_Cap.read()[1][
+                left_y_text.get() : right_y_text.get(),
+                left_x_text.get() : right_x_text.get(),
+            ]
+            frame_behind = img_filter(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            if difference_list[frame_now] == -1:
+                # 写入差值
+                difference_list[frame_now] = threshold_detection(
+                    frame_front, frame_behind, kernel
+                )
+            # 下一帧
+            frame_front = frame_behind
+            frame_now += 1
+    else:
+        log.info(f"因阈值设定 {threshold_value_input_Tkint.get()} < -1, 故跳过阈值检测")
+
     frame_now = end_num
 
     threshold_value_input_Entry.config(state=tk.NORMAL)
@@ -1307,7 +1354,7 @@ def Thread_draw_video_progress():
     global frame_now, end_num, scale, right_x, right_y, left_x, left_y
     while not end_all_thread:
         if frame_now > end_num:
-            sleep(0.2)
+            time.sleep(0.2)
             continue
 
         if scale:
@@ -1325,7 +1372,7 @@ def Thread_draw_video_progress():
 
         if frame_now == end_num:
             break
-        sleep(0.5)
+        time.sleep(2)
 
 
 def Listener_threshold_value_Entry():
@@ -1361,7 +1408,7 @@ def Listener_threshold_value_Entry():
                         else "black"
                     ),
                 )
-        sleep(0.5)
+        time.sleep(0.5)
 
 
 def start_OCR():
@@ -1422,6 +1469,7 @@ def OCR_API(frame: cv2.typing.MatLike):
     return "\n".join(readed_text) + "\n"
 
 
+@timer("OCR")
 def Thread_OCR_reading():
     global frame_now, ocred_num
 
@@ -1432,6 +1480,7 @@ def Thread_OCR_reading():
     # 第一行
     previous_line: str | None = None
     previous_time: float | None = None
+    previous_ocr_frame_num: int = -1
     for frame_num in range(start_num, end_num + 1):
         if not is_Thread_OCR_reading:
             srt.end_write()
@@ -1439,13 +1488,16 @@ def Thread_OCR_reading():
         if difference_list[frame_num] > threshold_value_input_Tkint.get():
             frame_now = frame_num
 
-            sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+            if frame_num != previous_ocr_frame_num + 1:
+                sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+
             previous_line = OCR_API(
                 sec_rendering_Cap.read()[1][
                     left_y_text.get() : right_y_text.get(),
                     left_x_text.get() : right_x_text.get(),
                 ]
             )
+            previous_ocr_frame_num = frame_num
 
             previous_time = frame_num / fps
             break
@@ -1466,13 +1518,16 @@ def Thread_OCR_reading():
         if difference_list[frame_num] > threshold_value_input_Tkint.get():
             frame_now = frame_num
 
-            sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+            if frame_num != previous_ocr_frame_num + 1:
+                sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
+
             current_line = OCR_API(
                 sec_rendering_Cap.read()[1][
                     left_y_text.get() : right_y_text.get(),
                     left_x_text.get() : right_x_text.get(),
                 ]
             )
+            previous_ocr_frame_num = frame_num
 
             if previous_line != current_line:
                 current_time = frame_num / fps
