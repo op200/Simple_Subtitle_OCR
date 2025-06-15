@@ -373,6 +373,7 @@ def jump_to_frame(new_frame: cv2.typing.MatLike | None = None):
             thickness=1,
         )
 
+        #todo: 让bar异步
         video_Progressbar["value"] = frame_now / (frame_count - 1) * 100
 
         photo = ImageTk.PhotoImage(Image.fromarray(frame))
