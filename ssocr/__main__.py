@@ -1,6 +1,9 @@
 import sys
 
 
+# os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
+
+
 if len(sys.argv) <= 1:
     import ss_gui
 

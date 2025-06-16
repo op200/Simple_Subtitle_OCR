@@ -1,4 +1,3 @@
-import ctypes
 import tkinter as tk
 from tkinter import ttk
 from tkinter import font as tkfont
@@ -6,11 +5,9 @@ from math import floor
 from threading import Thread
 import time
 import os
-import platform
 import shutil
 from typing import Callable
 import webbrowser
-import configparser
 
 import cv2
 from PIL import Image, ImageTk
@@ -19,94 +16,16 @@ import numpy as np
 import ss_info
 from ss_log import log
 import ss_ocr
+import ss_gui_var
+from ss_config import config_dir, config_file_pathname, config, save_config
 
 
 def run_gui():
-    root_Tk.mainloop()
+    ss_gui_var.root_Tk.mainloop()
 
 
 def hyperlink_jump(hyperlink: str):
     webbrowser.open(hyperlink)
-
-
-os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
-
-windows_scaling: float = 1
-if os.name == "nt":
-    try:
-        ctypes.windll.user32.SetProcessDPIAware()
-    except Exception:
-        log.warning("Windows DPI Aware failed")
-
-    try:
-        # 获取系统 DPI 缩放比例（默认 96 DPI 是 100%）
-        user32 = ctypes.windll.user32
-        hdc = user32.GetDC(0)
-        LOGPIXELSX = 88  # 表示水平 DPI
-        windows_scaling = ctypes.windll.gdi32.GetDeviceCaps(hdc, LOGPIXELSX) / 96.0
-        user32.ReleaseDC(0, hdc)
-    except Exception:
-        log.warning("Get Windows scaling failed")
-
-
-# 判断系统对应路径
-os_type = platform.system()
-if os_type == "Windows":
-    config_dir = os.path.join(os.getenv("APPDATA") or "", "SS_OCR")
-elif os_type == "Linux" or os_type == "Darwin":
-    config_dir = os.path.join(os.path.expanduser("~"), ".config", "SS_OCR")
-else:
-    config_dir = ""
-    log.warning("无法确认系统")
-
-os.makedirs(config_dir, exist_ok=True)
-
-ocr_choice: ss_ocr.ocr_module = ss_ocr.ocr_module.PaddleOCR
-
-# 不存在配置则写入默认配置
-config = configparser.ConfigParser()
-config_file_pathname = os.path.join(config_dir, "config.ini")
-if (
-    not os.path.exists(config_file_pathname)
-    or config.read(config_file_pathname)
-    and config.get("DEFAULT", "version") != ss_info.PROJECT_VERSION
-):
-    config["DEFAULT"] = {
-        k: str(v)
-        for k, v in {
-            "version": ss_info.PROJECT_VERSION,
-            "ocr": "PaddleOCR",
-            "language": "ch",
-            "srt_path": r".\output.srt",
-            "srt_overwrite": 0,
-            "use_gpu": 0,
-            "set_filter": 0,
-            "retain_color_tolerance": 40,
-            "retain_color1": "#ffffff",
-            "retain_color2": "#000000",
-        }.items()
-    }
-    with open(config_file_pathname, "w") as configfile:
-        config.write(configfile)
-
-
-def save_config():
-    config["DEFAULT"]["language"] = set_language_Entry.get()
-    config["DEFAULT"]["srt_path"] = set_srtPath_Entry.get()
-    config["DEFAULT"]["srt_overwrite"] = "1" if srt_overwrite_Tkbool.get() else "0"
-    config["DEFAULT"]["use_gpu"] = "1" if open_gpu_Tkbool.get() else "0"
-    config["DEFAULT"]["set_filter"] = "1" if set_filter_Tkbool.get() else "0"
-    config["DEFAULT"]["retain_color_tolerance"] = str(
-        retain_color_tolerance_Tkint.get()
-    )
-    config["DEFAULT"]["retain_color1"] = retain_color1_Entry.get()
-    config["DEFAULT"]["retain_color2"] = retain_color2_Entry.get()
-
-    try:
-        with open(config_file_pathname, "w") as configfile:
-            config.write(configfile)
-    except FileNotFoundError:
-        pass
 
 
 path: str
@@ -126,16 +45,15 @@ difference_list: list[int]
 VIDEO_FRAME_IMG_HEIGHT = 6
 
 
-root_Tk = tk.Tk()
-root_Tk.title(ss_info.PROJECT_FULL_NAME)
+ss_gui_var.root_Tk.title(ss_info.PROJECT_FULL_NAME)
 
 
 def root_Tk_Close():
     save_config()
-    root_Tk.destroy()
+    ss_gui_var.root_Tk.destroy()
 
 
-root_Tk.protocol("WM_DELETE_WINDOW", root_Tk_Close)
+ss_gui_var.root_Tk.protocol("WM_DELETE_WINDOW", root_Tk_Close)
 
 
 # 样式
@@ -149,44 +67,50 @@ underline_font = tkfont.Font(
 
 
 # 菜单
-menu_Menu = tk.Menu(root_Tk)
+menu_Menu = tk.Menu(ss_gui_var.root_Tk)
 
 menu_setting_Menu = tk.Menu(menu_Menu, tearoff=0)
 menu_setting_switchOCR_Menu = tk.Menu(menu_Menu, tearoff=0)
 
 
 def switch_to_paddleocr():
-    global config, ocr_choice
+    global config
 
     if os.path.exists(config_file_pathname):
-        config["DEFAULT"]["ocr"] = "PaddleOCR"
+        config["DEFAULT"]["ocr"] = ss_ocr.ocr_module.PaddleOCR.value
         config["DEFAULT"]["language"] = "ch"
         with open(config_file_pathname, "w") as configfile:
             config.write(configfile)
 
-    ocr_choice = ss_ocr.ocr_module.PaddleOCR
     set_language_Entry.delete(0, tk.END)
     set_language_Entry.insert(0, "ch")
-    log.info("切换至PaddleOCR")
+
+    ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.PaddleOCR)
+    log.info(f"切换至 {ss_ocr.ocr_module.PaddleOCR.value}")
 
 
 def switch_to_EasyOCR():
-    global config, ocr_choice
+    global config
 
     if os.path.exists(config_file_pathname):
-        config["DEFAULT"]["ocr"] = "EasyOCR"
+        config["DEFAULT"]["ocr"] = ss_ocr.ocr_module.EasyOCR.value
         config["DEFAULT"]["language"] = "ch_sim,en"
         with open(config_file_pathname, "w") as configfile:
             config.write(configfile)
 
-    ocr_choice = ss_ocr.ocr_module.EasyOCR
     set_language_Entry.delete(0, tk.END)
     set_language_Entry.insert(0, "ch_sim,en")
-    log.info("切换至EasyOCR")
+
+    ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.EasyOCR)
+    log.info(f"切换至 {ss_ocr.ocr_module.EasyOCR.value}")
 
 
-menu_setting_switchOCR_Menu.add_command(label="PaddleOCR", command=switch_to_paddleocr)
-menu_setting_switchOCR_Menu.add_command(label="EasyOCR", command=switch_to_EasyOCR)
+menu_setting_switchOCR_Menu.add_command(
+    label=ss_ocr.ocr_module.PaddleOCR.value, command=switch_to_paddleocr
+)
+menu_setting_switchOCR_Menu.add_command(
+    label=ss_ocr.ocr_module.EasyOCR.value, command=switch_to_EasyOCR
+)
 
 
 menu_Menu.add_cascade(label="设置", menu=menu_setting_Menu)
@@ -205,7 +129,7 @@ menu_setting_Menu.add_command(label="清除配置文件", command=remove_config_
 
 
 def create_help_about_Toplevel():
-    about_Toplevel = tk.Toplevel(root_Tk, width=20, height=15)
+    about_Toplevel = tk.Toplevel(ss_gui_var.root_Tk, width=20, height=15)
     about_Toplevel.geometry("320x160")
     about_Toplevel.title("About")
     frame = ttk.Frame(about_Toplevel)
@@ -232,13 +156,13 @@ menu_help_Menu.add_command(label="关于", command=create_help_about_Toplevel)
 menu_Menu.add_cascade(label="帮助", menu=menu_help_Menu)
 
 
-root_Tk.config(menu=menu_Menu)
+ss_gui_var.root_Tk.config(menu=menu_Menu)
 
 # 左侧控件
-left_Frame = ttk.Frame(root_Tk, cursor="tcross")
+left_Frame = ttk.Frame(ss_gui_var.root_Tk, cursor="tcross")
 left_Frame.grid(row=0, column=0, padx=5, pady=5)
 # 右侧控件
-right_Frame = ttk.Frame(root_Tk)
+right_Frame = ttk.Frame(ss_gui_var.root_Tk)
 right_Frame.grid(row=0, column=1, padx=5, pady=5)
 
 
@@ -286,7 +210,7 @@ frame_now = 0
 
 
 def img_filter(frame: cv2.typing.MatLike) -> cv2.typing.MatLike:
-    tolerance = retain_color_tolerance_Tkint.get()
+    tolerance = ss_gui_var.retain_color_tolerance_Tkint.get()
     color1 = tuple(
         int(retain_color1_Entry.get().lstrip("#")[i : i + 2], 16) for i in (0, 2, 4)
     )
@@ -364,7 +288,7 @@ def jump_to_frame(frame_new: int | None):
     except cv2.error:
         log.warning(f"[{frame_now}]该帧无法读取(应检查视频封装)")
     else:
-        if set_filter_Tkbool.get():
+        if ss_gui_var.set_filter_Tkbool.get():
             frame = img_filter(frame)
         # 重新绘制选框
         if scale:
@@ -467,12 +391,12 @@ def submit_path(_):
         video_size_Label.grid(row=0, column=0)
         video_fps_Label.grid(row=0, column=1, padx=8)
         if (
-            frame_height > root_Tk.winfo_screenheight() * 5 / 6
-            or frame_width > root_Tk.winfo_screenwidth() * 4 / 5
+            frame_height > ss_gui_var.root_Tk.winfo_screenheight() * 5 / 6
+            or frame_width > ss_gui_var.root_Tk.winfo_screenwidth() * 4 / 5
         ):
             scale = max(
-                (1.2 * frame_height + 100) / root_Tk.winfo_screenheight(),
-                (1.2 * frame_width + 500) / root_Tk.winfo_screenwidth(),
+                (1.2 * frame_height + 100) / ss_gui_var.root_Tk.winfo_screenheight(),
+                (1.2 * frame_width + 500) / ss_gui_var.root_Tk.winfo_screenwidth(),
                 1.5,
             )
             new_frame_width, new_frame_height = (
@@ -541,7 +465,7 @@ def submit_path(_):
     except Exception:
         log.error("颜色格式错误")
 
-    root_Tk.focus_set()
+    ss_gui_var.root_Tk.focus_set()
 
 
 # 右侧控件
@@ -555,7 +479,7 @@ video_path_review_Label = ttk.Label(
     text="输入视频路径名",
     width=50,
     anchor="center",
-    wraplength=350 * windows_scaling,
+    wraplength=350 * ss_gui_var.windows_scaling,
 )
 video_path_review_Label.grid(row=1, column=0, columnspan=2, pady=8)
 
@@ -584,7 +508,7 @@ def enter_to_change_frame_now(_):
         frame_new = frame_count - 1
 
     jump_to_frame(frame_new)
-    root_Tk.focus_set()
+    ss_gui_var.root_Tk.focus_set()
 
 
 frame_now_Frame = ttk.Frame(frame_num_Frame)
@@ -728,7 +652,7 @@ def enter_to_change_draw_box(_):
     photo = ImageTk.PhotoImage(Image.fromarray(frame))
     video_review_Label.config(image=photo)
     video_review_Label.image = photo  # type: ignore
-    root_Tk.focus_set()
+    ss_gui_var.root_Tk.focus_set()
 
 
 draw_box_left_x.bind("<Return>", enter_to_change_draw_box)
@@ -745,16 +669,14 @@ set_srt_Frame = ttk.Frame(output_setup_Frame)
 set_srtPath_Label = ttk.Label(set_srt_Frame, text="SRT位置:")
 set_srtPath_Label.grid(row=0, column=0)
 
-set_srtPath_Entry = ttk.Entry(set_srt_Frame)
+set_srtPath_Entry = ttk.Entry(set_srt_Frame, textvariable=ss_gui_var.set_srtPath_Tkstr)
 set_srtPath_Entry.insert(0, config.get("DEFAULT", "srt_path"))
 set_srtPath_Entry.grid(row=0, column=1)
 
-srt_overwrite_Tkbool = tk.BooleanVar()
-srt_overwrite_Tkbool.set(bool(int(config.get("DEFAULT", "srt_overwrite"))))
-srt_overwrite_set = ttk.Checkbutton(
-    set_srt_Frame, text="覆写SRT", variable=srt_overwrite_Tkbool
+srt_overwrite_Checkbutton = ttk.Checkbutton(
+    set_srt_Frame, text="覆写SRT", variable=ss_gui_var.srt_overwrite_Tkbool
 )
-srt_overwrite_set.grid(row=0, column=2, padx=10)
+srt_overwrite_Checkbutton.grid(row=0, column=2, padx=10)
 
 
 set_ocr_Frame = ttk.Frame(output_setup_Frame)
@@ -762,14 +684,14 @@ set_ocr_Frame = ttk.Frame(output_setup_Frame)
 set_language_title_Label = ttk.Label(set_ocr_Frame, text="OCR语言:")
 set_language_title_Label.grid(row=0, column=1)
 
-set_language_Entry = ttk.Entry(set_ocr_Frame)
+set_language_Entry = ttk.Entry(
+    set_ocr_Frame, textvariable=ss_gui_var.set_language_Tkstr
+)
 set_language_Entry.insert(0, config.get("DEFAULT", "language"))
 set_language_Entry.grid(row=0, column=2)
 
-open_gpu_Tkbool = tk.BooleanVar()
-open_gpu_Tkbool.set(bool(int(config.get("DEFAULT", "use_gpu"))))
 open_gpu_set_Checkbutton = ttk.Checkbutton(
-    set_ocr_Frame, text="使用GPU", variable=open_gpu_Tkbool
+    set_ocr_Frame, text="使用GPU", variable=ss_gui_var.open_gpu_Tkbool
 )
 open_gpu_set_Checkbutton.grid(row=0, column=3, padx=10)
 
@@ -777,12 +699,9 @@ open_gpu_set_Checkbutton.grid(row=0, column=3, padx=10)
 # filter相关控件
 set_filter_Frame = ttk.Frame(right_Frame)
 
-set_filter_Tkbool = tk.BooleanVar()
-set_filter_Tkbool.set(bool(int(config.get("DEFAULT", "set_filter"))))
-
 
 def set_filter_set_event():
-    if set_filter_Tkbool.get():
+    if ss_gui_var.set_filter_Tkbool.get():
         retain_color_tolerance_Entry.config(state=tk.NORMAL)
         retain_color1_Entry.config(state=tk.NORMAL)
         retain_color2_Entry.config(state=tk.NORMAL)
@@ -796,7 +715,7 @@ def set_filter_set_event():
 set_filter_set = ttk.Checkbutton(
     set_filter_Frame,
     text="启用滤镜",
-    variable=set_filter_Tkbool,
+    variable=ss_gui_var.set_filter_Tkbool,
     command=set_filter_set_event,
 )
 set_filter_set.grid(row=0, column=0)
@@ -805,11 +724,11 @@ retain_color_tolerance_Frame = ttk.Frame(set_filter_Frame)
 retain_color_tolerance_Frame.grid(row=0, column=1, padx=5)
 retain_color_tolerance_Label = ttk.Label(retain_color_tolerance_Frame, text="容差")
 retain_color_tolerance_Label.grid(row=0, column=0)
-retain_color_tolerance_Tkint = tk.IntVar(
-    value=int(config.get("DEFAULT", "retain_color_tolerance"))
-)
+
 retain_color_tolerance_Entry = ttk.Entry(
-    retain_color_tolerance_Frame, textvariable=retain_color_tolerance_Tkint, width=4
+    retain_color_tolerance_Frame,
+    textvariable=ss_gui_var.retain_color_tolerance_Tkint,
+    width=4,
 )
 retain_color_tolerance_Entry.grid(row=0, column=1)
 retain_color_tolerance_Entry.bind("<Return>", lambda _: jump_to_frame(None))
@@ -827,8 +746,9 @@ retain_color1_preview_Canvas = tk.Canvas(
 )
 retain_color1_preview_Canvas.grid(row=0, column=0, padx=5)
 
-retain_color1_Entry = ttk.Entry(set_color_Frame, width=8)
-retain_color1_Entry.insert(0, config.get("DEFAULT", "retain_color1"))
+retain_color1_Entry = ttk.Entry(
+    set_color_Frame, width=8, textvariable=ss_gui_var.retain_color1_Tkstr
+)
 retain_color1_Entry.grid(row=0, column=1)
 
 retain_color2_preview_Canvas = tk.Canvas(
@@ -841,11 +761,12 @@ retain_color2_preview_Canvas = tk.Canvas(
 )
 retain_color2_preview_Canvas.grid(row=0, column=2, padx=5)
 
-retain_color2_Entry = ttk.Entry(set_color_Frame, width=8)
-retain_color2_Entry.insert(0, config.get("DEFAULT", "retain_color2"))
+retain_color2_Entry = ttk.Entry(
+    set_color_Frame, width=8, textvariable=ss_gui_var.retain_color2_Tkstr
+)
 retain_color2_Entry.grid(row=0, column=3)
 
-if set_filter_Tkbool.get():
+if ss_gui_var.set_filter_Tkbool.get():
     retain_color_tolerance_Entry.config(state=tk.NORMAL)
     retain_color1_Entry.config(state=tk.NORMAL)
     retain_color2_Entry.config(state=tk.NORMAL)
@@ -920,10 +841,9 @@ log_Frame = ttk.Frame(right_Frame)
 log_vScrollbar = ttk.Scrollbar(log_Frame)
 log_vScrollbar.grid(row=0, column=1, sticky="ns")
 
-log.log_Text = tk.Text(
-    log_Frame, width=45, height=10, yscrollcommand=log_vScrollbar.set
-)  # noqa: F811
-log.log_Text.grid(row=0, column=0, sticky="nsew")
+log_Text = tk.Text(log_Frame, width=45, height=10, yscrollcommand=log_vScrollbar.set)  # noqa: F811
+log_Text.grid(row=0, column=0, sticky="nsew")
+log.log_Text = log_Text
 
 
 log_vScrollbar.config(command=log.log_Text.yview)
@@ -932,15 +852,15 @@ log_vScrollbar.config(command=log.log_Text.yview)
 config.read(config_file_pathname)
 
 match config.get("DEFAULT", "ocr"):
-    case "PaddleOCR":
-        ss_ocr.switch_ocr_module(ocr_choice := ss_ocr.ocr_module.PaddleOCR)
+    case ss_ocr.ocr_module.PaddleOCR.value:
+        ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.PaddleOCR)
 
-    case "EasyOCR":
-        ss_ocr.switch_ocr_module(ocr_choice := ss_ocr.ocr_module.EasyOCR)
+    case ss_ocr.ocr_module.EasyOCR.value:
+        ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.EasyOCR)
 
     case _ as s:
-        log.warning(f"未知库选项: {s}, 默认使用 PaddleOCR")
-        ss_ocr.switch_ocr_module(ocr_choice := ss_ocr.ocr_module.PaddleOCR)
+        log.warning(f"未知库选项: {s}, 默认使用 {ss_ocr.ocr_module.PaddleOCR.value}")
+        ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.PaddleOCR)
 
 
 # 选框
@@ -962,7 +882,7 @@ def draw_box():
     main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_now)
     frame = main_rendering_Cap.read()[1]
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    if set_filter_Tkbool.get():
+    if ss_gui_var.set_filter_Tkbool.get():
         frame = img_filter(frame)
 
     right_x = min(start_x, end_x)
@@ -1029,7 +949,7 @@ class SRT:
 
     def __init__(self, path: str):
         try:
-            if srt_overwrite_Tkbool.get():
+            if ss_gui_var.srt_overwrite_Tkbool.get():
                 f = open(path, "w")
             else:
                 if os.path.exists(path):
@@ -1089,20 +1009,6 @@ def findThreshold_start():
     save_config()
 
     global ocr_reader, srt
-    match ocr_choice:
-        case ss_ocr.ocr_module.PaddleOCR:
-            from paddleocr import PaddleOCR
-
-            ocr_reader = PaddleOCR(
-                lang=set_language_Entry.get(), use_gpu=open_gpu_Tkbool.get()
-            )
-
-        case ss_ocr.ocr_module.EasyOCR:
-            import easyocr
-
-            ocr_reader = easyocr.Reader(
-                set_language_Entry.get().split(","), gpu=open_gpu_Tkbool.get()
-            )
 
     srt = SRT(set_srtPath_Entry.get())
     input_video_Entry.config(state=tk.DISABLED)
@@ -1114,7 +1020,7 @@ def findThreshold_start():
     draw_box_right_y.config(state=tk.DISABLED)
 
     set_srtPath_Entry.config(state=tk.DISABLED)
-    srt_overwrite_set.config(state=tk.DISABLED)
+    srt_overwrite_Checkbutton.config(state=tk.DISABLED)
     set_language_Entry.config(state=tk.DISABLED)
     open_gpu_set_Checkbutton.config(state=tk.DISABLED)
 
@@ -1131,8 +1037,9 @@ def findThreshold_start():
 
     threshold_value_input_Entry.config(state=tk.DISABLED)
 
-    start_threshold_detection_Button.config(text="OCR", command=start_OCR)
-    start_threshold_detection_Button.config(state=tk.DISABLED)
+    start_threshold_detection_Button.config(
+        state=tk.DISABLED, text="OCR", command=start_OCR
+    )
 
     video_review_Label.unbind("<MouseWheel>")
     video_review_Label.unbind("<B1-Motion>")
@@ -1165,7 +1072,7 @@ def findThreshold_end():
     draw_box_right_y.config(state=tk.NORMAL)
 
     set_srtPath_Entry.config(state=tk.NORMAL)
-    srt_overwrite_set.config(state=tk.NORMAL)
+    srt_overwrite_Checkbutton.config(state=tk.NORMAL)
     set_language_Entry.config(state=tk.NORMAL)
     open_gpu_set_Checkbutton.config(state=tk.NORMAL)
 
@@ -1206,8 +1113,6 @@ def findThreshold_end():
         if hasattr(srt, "srt"):
             srt.end_write()
         del srt
-    if "ocr_reader" in globals():
-        del ocr_reader
 
 
 start_threshold_detection_Button.config(command=findThreshold_start)
@@ -1416,6 +1321,8 @@ def start_OCR():
 
     frame_now = start_num
 
+    ss_ocr.api.switch_ocr_module(ss_ocr.api.ocr_choice)
+
     is_Thread_OCR_reading = True
     ocr_reading = Thread(target=Thread_OCR_reading, daemon=True)
     ocr_reading.start()
@@ -1433,39 +1340,19 @@ def start_OCR():
     )
 
 
-def OCR_API(frame: cv2.typing.MatLike):
+def OCR_API(frame: cv2.typing.MatLike) -> str:
     global ocred_num
 
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     frame = img_filter(frame)
 
-    match ocr_choice:
-        case ss_ocr.ocr_module.PaddleOCR:
-            from paddleocr import PaddleOCR
-
-            if not isinstance(ocr_reader, PaddleOCR):
-                raise Exception()
-
-            text: str | None = ocr_reader.ocr(frame)[0]
-
-            if text is None:
-                readed_text = [""]
-            else:
-                readed_text = [line[1][0] for line in text]
-
-        case ss_ocr.ocr_module.EasyOCR:
-            import easyocr
-
-            if not isinstance(ocr_reader, easyocr.Reader):
-                raise Exception()
-
-            readed_text = ocr_reader.readtext(frame, detail=0)
+    res_text = ss_ocr.api.read(frame)
 
     ocred_num += 1
     now_frame_Dvalue_Label.config(
         text=f"OCR进度: {ocred_num} / {meet_frame_num} = {ocred_num / meet_frame_num * 100:.2f}%"
     )
-    return "\n".join(readed_text) + "\n"
+    return res_text
 
 
 @timer("OCR")
