@@ -28,24 +28,13 @@ jobs:
       with:
         python-version: "3.13"
 
-    - name: Building the application
+    - name: Build
       run: |
-        mkdir build | Out-Null
-
-        Copy-Item -Path ssocr/* -Destination build/ -Recurse -Force
-
-        python -m compileall -f -b build/
-
-        Get-ChildItem -Path build/ -Filter *.py -Recurse | Remove-Item -Force
-
-        if (Test-Path build/main.pyc) {
-          Move-Item -Path build/main.pyc -Destination build/__main__.pyc -Force
-        }
-
-        python -m zipapp build --output dist/ssocr.pyz --compress
+        python -m compileall -f ssocr
+        python -m zipapp ssocr --output ssocr.pyz --compress
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ssocr.pyz
-        path: dist/ssocr.pyz
+        path: ssocr.pyz
