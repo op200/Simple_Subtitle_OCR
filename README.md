@@ -35,6 +35,23 @@ pip install paddleocr
 pip install easyocr
 ```
 
+### 使用 [WeChatOCR](https://github.com/kanadeblisst00/wechat_ocr)（本分支添加的功能）
+
+仅支持windows系统，测试 微信windows客户端 3.9.12.51 版本可用，先安装 [微信](https://pc.weixin.qq.com)  
+再打开 ssocr/wx.py 修改配置
+```
+common_paths = "" # 这个是微信的安装路径 例如下面这个
+#common_paths = r"C:\\Program Files (x86)\\Tencent\WeChat"
+ramdisk = "" # 这里是一个内存盘的盘符，因为微信ocr不支持从内存直接读取数据，只能先写入文件 所以需要利用 ramdisk 创建一个路径，tool文件夹下带了一个魔方内存盘 我在测试的时候创建了一个L盘 配置方法例如下面这句
+#ramdisk = "L:/"
+```
+```
+# 安装依赖
+pip install wechat_ocr
+```
+打开 tool 下的 ramdisk.exe 创建一个内存盘，并且分配上面配置的对应盘符
+
+
 ***
 
 # 运行程序
@@ -48,6 +65,10 @@ pip install easyocr
   双击运行 `ssocr.pyz` 文件  
   或在其他窗口调用 `python ssocr.pyz`
 
+* 新版（本分支）
+  ```
+  python __main__.py
+  ```
 ***
 
 # 使用说明

@@ -9,6 +9,7 @@ import ss_gui_var
 class ocr_module(enum.Enum):
     PaddleOCR = "PaddleOCR"
     EasyOCR = "EasyOCR"
+    WeChatOCR = "WeChatOCR"
 
 
 class api:
@@ -50,6 +51,13 @@ class api:
                 except ModuleNotFoundError as e:
                     log.error(f"存在未安装的库: {e}")
 
+            case ocr_module.WeChatOCR:
+                try:
+                    from wx import WxOCR
+
+                except ModuleNotFoundError as e:
+                    log.error(f"存在未安装的库: {e}")
+
     @staticmethod
     def read(frame: cv2.typing.MatLike) -> str:
         match api.ocr_choice:
@@ -73,5 +81,14 @@ class api:
                     raise Exception()
 
                 readed_text = api.ocr_reader.readtext(frame, detail=0)
+
+            case ocr_module.WeChatOCR:
+                from wx import WxOCR
+
+                if not isinstance(api.ocr_reader,WxOCR):
+                    api.ocr_reader = WxOCR()
+
+                readed_text = api.ocr_reader.readtext(frame)
+                return readed_text
 
         return "\n".join(readed_text) + "\n"

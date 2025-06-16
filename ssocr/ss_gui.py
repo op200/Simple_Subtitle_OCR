@@ -104,6 +104,17 @@ def switch_to_EasyOCR():
     ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.EasyOCR)
     log.info(f"切换至 {ss_ocr.ocr_module.EasyOCR.value}")
 
+def switch_to_WeChatOCR():
+    global config
+    if os.path.exists(config_file_pathname):
+        config["DEFAULT"]["ocr"] = ss_ocr.ocr_module.WeChatOCR.value
+        config["DEFAULT"]["language"] = "ch_sim,en"
+        with open(config_file_pathname, "w") as configfile:
+            config.write(configfile)
+    set_language_Entry.delete(0, tk.END)
+    set_language_Entry.insert(0, "ch_sim,en")
+    ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.WeChatOCR)
+    log.info(f"切换至 {ss_ocr.ocr_module.WeChatOCR.value}")
 
 menu_setting_switchOCR_Menu.add_command(
     label=ss_ocr.ocr_module.PaddleOCR.value, command=switch_to_paddleocr
@@ -111,7 +122,9 @@ menu_setting_switchOCR_Menu.add_command(
 menu_setting_switchOCR_Menu.add_command(
     label=ss_ocr.ocr_module.EasyOCR.value, command=switch_to_EasyOCR
 )
-
+menu_setting_switchOCR_Menu.add_command(
+    label=ss_ocr.ocr_module.WeChatOCR.value, command=switch_to_WeChatOCR
+)
 
 menu_Menu.add_cascade(label="设置", menu=menu_setting_Menu)
 menu_setting_Menu.add_cascade(label="切换OCR库", menu=menu_setting_switchOCR_Menu)
@@ -365,6 +378,7 @@ def submit_path(_):
         difference_list, \
         frame_now
     path = input_video_Entry.get()
+    path = path.strip('"')
     # 渲染控件
     frame_num_Frame.grid(row=2, column=0)
 
@@ -858,6 +872,8 @@ match config.get("DEFAULT", "ocr"):
     case ss_ocr.ocr_module.EasyOCR.value:
         ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.EasyOCR)
 
+    case ss_ocr.ocr_module.WeChatOCR.value:
+        ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.WeChatOCR)
     case _ as s:
         log.warning(f"未知库选项: {s}, 默认使用 {ss_ocr.ocr_module.PaddleOCR.value}")
         ss_ocr.api.switch_ocr_module(ss_ocr.ocr_module.PaddleOCR)
