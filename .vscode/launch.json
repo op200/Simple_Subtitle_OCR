@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python 调试程序 GUI",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/ssocr",
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "Python 调试程序 CLI",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/ssocr",
+            "console": "integratedTerminal",
+            "args": [
+                "-test",
+                "123",
+            ],
+        },
+    ],
+}

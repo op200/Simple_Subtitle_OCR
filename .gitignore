@@ -2,4 +2,7 @@
 !.gitignore
 !LICENSE
 !README.md
-!SS_OCR.py
+!ssocr
+!.vscode
+
+__pycache__
