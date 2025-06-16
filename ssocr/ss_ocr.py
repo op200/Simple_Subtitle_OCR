@@ -14,15 +14,16 @@ def switch_ocr_module(ocr_module: ocr_module):
             # 通过提前 import torch 防止 PaddleOCR 内部的 import 异常
             try:
                 import torch  # noqa: F401
-            except ModuleNotFoundError:
-                pass
-            try:
-                from paddleocr import PaddleOCR  # noqa: F401
-            except ModuleNotFoundError:
-                log.error("未安装库: paddleocr")
+                from paddleocr import PaddleOCR
+
+                return PaddleOCR
+            except ModuleNotFoundError as e:
+                log.error(f"存在未安装的库: {e}")
 
         case ocr_module.EasyOCR:
             try:
-                import easyocr  # noqa: F401
-            except ModuleNotFoundError:
-                log.error("未安装库: easyocr")
+                import easyocr
+
+                return easyocr
+            except ModuleNotFoundError as e:
+                log.error(f"存在未安装的库: {e}")

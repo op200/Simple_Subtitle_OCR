@@ -8,7 +8,7 @@ import time
 import os
 import platform
 import shutil
-from typing import Literal, Callable
+from typing import Callable
 import webbrowser
 import configparser
 
@@ -61,7 +61,7 @@ else:
 
 os.makedirs(config_dir, exist_ok=True)
 
-ocr_choice: Literal[1, 2] = 1
+ocr_choice: ss_ocr.ocr_module = ss_ocr.ocr_module.PaddleOCR
 
 # 不存在配置则写入默认配置
 config = configparser.ConfigParser()
@@ -157,12 +157,14 @@ menu_setting_switchOCR_Menu = tk.Menu(menu_Menu, tearoff=0)
 
 def switch_to_paddleocr():
     global config, ocr_choice
+
     if os.path.exists(config_file_pathname):
         config["DEFAULT"]["ocr"] = "PaddleOCR"
         config["DEFAULT"]["language"] = "ch"
         with open(config_file_pathname, "w") as configfile:
             config.write(configfile)
-    ocr_choice = 1
+
+    ocr_choice = ss_ocr.ocr_module.PaddleOCR
     set_language_Entry.delete(0, tk.END)
     set_language_Entry.insert(0, "ch")
     log.info("切换至PaddleOCR")
@@ -170,12 +172,14 @@ def switch_to_paddleocr():
 
 def switch_to_EasyOCR():
     global config, ocr_choice
+
     if os.path.exists(config_file_pathname):
         config["DEFAULT"]["ocr"] = "EasyOCR"
         config["DEFAULT"]["language"] = "ch_sim,en"
         with open(config_file_pathname, "w") as configfile:
             config.write(configfile)
-    ocr_choice = 2
+
+    ocr_choice = ss_ocr.ocr_module.EasyOCR
     set_language_Entry.delete(0, tk.END)
     set_language_Entry.insert(0, "ch_sim,en")
     log.info("切换至EasyOCR")
@@ -206,7 +210,9 @@ def create_help_about_Toplevel():
     about_Toplevel.title("About")
     frame = ttk.Frame(about_Toplevel)
     frame.pack(expand=True)
-    ttk.Label(frame, text=f"{ss_info.PROJECT_FULL_NAME}  v{ss_info.PROJECT_VERSION}\n\n").pack()
+    ttk.Label(
+        frame, text=f"{ss_info.PROJECT_FULL_NAME}  v{ss_info.PROJECT_VERSION}\n\n"
+    ).pack()
 
     hyperlink_Label = ttk.Label(
         frame,
@@ -215,7 +221,9 @@ def create_help_about_Toplevel():
         foreground="blue",
         font=underline_font,
     )
-    hyperlink_Label.bind("<Button-1>", lambda _: hyperlink_jump(ss_info.PROJECT_HOME_LINK))
+    hyperlink_Label.bind(
+        "<Button-1>", lambda _: hyperlink_jump(ss_info.PROJECT_HOME_LINK)
+    )
     hyperlink_Label.pack()
 
 
@@ -328,16 +336,28 @@ def img_filter(frame: cv2.typing.MatLike) -> cv2.typing.MatLike:
     return frame
 
 
-# 跳转当前帧
-def jump_to_frame(new_frame: cv2.typing.MatLike | None = None):
+def jump_to_frame(frame_new: int | None):
+    """
+    预览画面跳转到指定帧
+
+    int 为指定帧, None 为 frame_now
+    """
+
     global scale, frame_now, frame_count
 
     frame: cv2.typing.MatLike
-    if new_frame is None:
-        main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_now)
+
+    if frame_new is not None and frame_new == frame_now + 1:
         frame = main_rendering_Cap.read()[1]
+    elif frame_new == frame_now:
+        return
     else:
-        frame = new_frame
+        if frame_new is None:
+            frame_new = frame_now
+        main_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_new)
+        frame = main_rendering_Cap.read()[1]
+
+    frame_now = frame_new
 
     try:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -356,7 +376,6 @@ def jump_to_frame(new_frame: cv2.typing.MatLike | None = None):
             thickness=1,
         )
 
-        # todo: 让bar异步
         video_Progressbar["value"] = frame_now / (frame_count - 1) * 100
 
         photo = ImageTk.PhotoImage(Image.fromarray(frame))
@@ -370,13 +389,16 @@ def jump_to_frame(new_frame: cv2.typing.MatLike | None = None):
 # 进度条的滚轮事件
 def video_progressbar_mousewheel(event):
     global frame_now, frame_count
-    frame_now += 1 if event.delta < 0 else -1
-    if frame_now < 0:
-        frame_now = 0
-    if frame_now >= frame_count:
-        frame_now = frame_count - 1
 
-    jump_to_frame()
+    frame_new = frame_now
+
+    frame_new += 1 if event.delta < 0 else -1
+    if frame_new < 0:
+        frame_new = 0
+    if frame_new >= frame_count:
+        frame_new = frame_count - 1
+
+    jump_to_frame(frame_new)
 
 
 video_review_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
@@ -391,10 +413,8 @@ def video_progressbar_leftDrag(event):
         ratio = 1
     if ratio < 0:
         ratio = 0
-    # video_Progressbar["value"] = ratio*100
-    global frame_now, frame_count
-    frame_now = int((frame_count - 1) * ratio)
-    jump_to_frame()
+    global frame_count
+    jump_to_frame(int((frame_count - 1) * ratio))
 
 
 video_Progressbar.bind("<B1-Motion>", video_progressbar_leftDrag)
@@ -474,8 +494,7 @@ def submit_path(_):
         video_Progressbar.grid(row=2, column=0)
 
         # 渲染进度
-        frame_now = 0
-        jump_to_frame()
+        jump_to_frame(None)
 
         # 初始化右侧控件
         frame_count = int(main_rendering_Cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -556,15 +575,15 @@ frame_num_Frame = ttk.Frame(right_Frame)
 
 
 def enter_to_change_frame_now(_):
-    global frame_now, frame_count
+    global frame_count
 
-    frame_now = int(frame_now_Entry.get())
-    if frame_now < 0:
-        frame_now = 0
-    if frame_now >= frame_count:
-        frame_now = frame_count - 1
+    frame_new = int(frame_now_Entry.get())
+    if frame_new < 0:
+        frame_new = 0
+    if frame_new >= frame_count:
+        frame_new = frame_count - 1
 
-    jump_to_frame()
+    jump_to_frame(frame_new)
     root_Tk.focus_set()
 
 
@@ -588,9 +607,7 @@ def set_start_frame_num_Click(
     frame1_Tkint: tk.IntVar, frame2_Tkint: tk.IntVar, flush_frame_now: int | None = None
 ):
     if flush_frame_now is not None:
-        global frame_now
-        frame_now = flush_frame_now
-        jump_to_frame()
+        jump_to_frame(flush_frame_now)
 
     frame1_Tkint.set(frame_now_Tkint.get())
     if start_frame_num_Tkint.get() > end_frame_num_Tkint.get():
@@ -773,7 +790,7 @@ def set_filter_set_event():
         retain_color_tolerance_Entry.config(state=tk.DISABLED)
         retain_color1_Entry.config(state=tk.DISABLED)
         retain_color2_Entry.config(state=tk.DISABLED)
-    jump_to_frame()
+    jump_to_frame(None)
 
 
 set_filter_set = ttk.Checkbutton(
@@ -795,7 +812,7 @@ retain_color_tolerance_Entry = ttk.Entry(
     retain_color_tolerance_Frame, textvariable=retain_color_tolerance_Tkint, width=4
 )
 retain_color_tolerance_Entry.grid(row=0, column=1)
-retain_color_tolerance_Entry.bind("<Return>", lambda _: jump_to_frame())
+retain_color_tolerance_Entry.bind("<Return>", lambda _: jump_to_frame(None))
 
 set_color_Frame = ttk.Frame(set_filter_Frame)
 set_color_Frame.grid(row=0, column=2)
@@ -848,7 +865,7 @@ def enter_to_draw_retain_color(_):
         )
     except Exception:
         log.error("颜色格式错误")
-    jump_to_frame()
+    jump_to_frame(None)
 
 
 retain_color1_Entry.bind("<Return>", enter_to_draw_retain_color)
@@ -916,17 +933,14 @@ config.read(config_file_pathname)
 
 match config.get("DEFAULT", "ocr"):
     case "PaddleOCR":
-        ocr_choice = 1
-        ss_ocr.switch_ocr_module(ss_ocr.ocr_module.PaddleOCR)
+        ss_ocr.switch_ocr_module(ocr_choice := ss_ocr.ocr_module.PaddleOCR)
 
     case "EasyOCR":
-        ocr_choice = 2
-        ss_ocr.switch_ocr_module(ss_ocr.ocr_module.EasyOCR)
+        ss_ocr.switch_ocr_module(ocr_choice := ss_ocr.ocr_module.EasyOCR)
 
     case _ as s:
         log.warning(f"未知库选项: {s}, 默认使用 PaddleOCR")
-        ocr_choice = 1
-        ss_ocr.switch_ocr_module(ss_ocr.ocr_module.EasyOCR)
+        ss_ocr.switch_ocr_module(ocr_choice := ss_ocr.ocr_module.PaddleOCR)
 
 
 # 选框
@@ -1076,13 +1090,14 @@ def findThreshold_start():
 
     global ocr_reader, srt
     match ocr_choice:
-        case 1:
+        case ss_ocr.ocr_module.PaddleOCR:
             from paddleocr import PaddleOCR
 
             ocr_reader = PaddleOCR(
                 lang=set_language_Entry.get(), use_gpu=open_gpu_Tkbool.get()
             )
-        case 2:
+
+        case ss_ocr.ocr_module.EasyOCR:
             import easyocr
 
             ocr_reader = easyocr.Reader(
@@ -1344,7 +1359,7 @@ def Thread_draw_video_progress():
             left_x = right_x_text.get()
             left_y = right_y_text.get()
 
-        jump_to_frame()
+        jump_to_frame(None)
 
         if frame_now == end_num:
             break
@@ -1425,17 +1440,25 @@ def OCR_API(frame: cv2.typing.MatLike):
     frame = img_filter(frame)
 
     match ocr_choice:
-        case 1:
+        case ss_ocr.ocr_module.PaddleOCR:
             from paddleocr import PaddleOCR
 
             if not isinstance(ocr_reader, PaddleOCR):
                 raise Exception()
+
             text: str | None = ocr_reader.ocr(frame)[0]
+
             if text is None:
                 readed_text = [""]
             else:
                 readed_text = [line[1][0] for line in text]
-        case 2:
+
+        case ss_ocr.ocr_module.EasyOCR:
+            import easyocr
+
+            if not isinstance(ocr_reader, easyocr.Reader):
+                raise Exception()
+
             readed_text = ocr_reader.readtext(frame, detail=0)
 
     ocred_num += 1
