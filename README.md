@@ -3,6 +3,7 @@
 项目使用 Python 3.13 开发和测试，不保证其他版本兼容，且 <3.11 的版本一定不兼容
 
 ## 必要依赖库
+在安装 OCR 库之后安装，防止 OCR 库依赖的版本覆盖新版，若已被覆盖，可先卸载 `pip uninstall opencv-contrib-python` 再安装
 ```
 pip install -U opencv-contrib-python
 pip install -U pillow
