@@ -6,7 +6,6 @@ from threading import Thread
 import time
 import os
 import shutil
-from typing import Callable
 import webbrowser
 
 import cv2
@@ -18,6 +17,7 @@ from ss_log import log
 import ss_ocr
 import ss_gui_var
 from ss_config import config_dir, config_file_pathname, config, save_config
+import ss_utils
 
 
 def run_gui():
@@ -199,6 +199,7 @@ def draw_video_frame_Label_range(
     ] = color
 
 
+# 关键帧位置提示控件
 video_frame_Label = ttk.Label(left_Frame)
 
 frame_count = 0
@@ -621,15 +622,21 @@ def enter_to_change_draw_box(_):
         max(right_y_Tkint.get(), 0),
     )
 
-    if lx > rx:
-        lx, rx = rx, lx
-    if ly > ry:
-        ly, ry = ry, ly
-
     if rx >= frame_width:
         rx = frame_width
     if ry >= frame_height:
         ry = frame_height
+
+    if not lx == rx == ly == ry == 0:
+        if lx == rx:
+            rx = lx + 1
+        if ly == ry:
+            ry = ly + 1
+
+    if lx > rx:
+        lx, rx = rx, lx
+    if ly > ry:
+        ly, ry = ry, ly
 
     left_x_Tkint.set(lx)
     right_x_Tkint.set(rx)
@@ -874,33 +881,26 @@ def draw_box():
         right_y, \
         left_x, \
         left_y
-    preview_Cap.set(cv2.CAP_PROP_POS_FRAMES, frame_now)
-    frame = preview_Cap.read()[1]
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    if ss_gui_var.set_filter_Tkbool.get():
-        frame = img_filter(frame)
 
     right_x = min(start_x, end_x)
     right_y = min(start_y, end_y)
     left_x = max(start_x, end_x)
     left_y = max(start_y, end_y)
 
+    if left_x == right_x:
+        right_x = left_x + 1
+    if left_y == right_y:
+        right_y = left_y + 1
+
     if right_x < 0:
         right_x = 0
     if right_y < 0:
         right_y = 0
-    if left_x >= video_review_Label.winfo_width() - 4:
-        left_x = video_review_Label.winfo_width() - 4
-    if left_y >= video_review_Label.winfo_height() - 4:
-        left_y = video_review_Label.winfo_height() - 4
-    if scale:
-        frame = cv2.resize(frame, (new_frame_width, new_frame_height))
-    cv2.rectangle(
-        frame,
-        (right_x, right_y, left_x - right_x, left_y - right_y),
-        color=(0, 255, 255),
-        thickness=1,
-    )
+
+    if left_x >= (w := video_review_Label.winfo_width() - 4):
+        left_x = w
+    if left_y >= (h := video_review_Label.winfo_height() - 4):
+        left_y = h
 
     if scale:
         left_x_Tkint.set(int(right_x * frame_width / new_frame_width))
@@ -913,9 +913,7 @@ def draw_box():
         right_x_Tkint.set(left_x)
         right_y_Tkint.set(left_y)
 
-    photo = ImageTk.PhotoImage(Image.fromarray(frame))
-    video_review_Label.config(image=photo)
-    video_review_Label.image = photo  # type: ignore
+    jump_to_frame(None)
 
 
 def draw_video_review_MouseDown(event):
@@ -948,10 +946,10 @@ class SRT:
                 f = open(path, "w")
             else:
                 if os.path.exists(path):
-                    log.warning("已存在同名SRT")
+                    log.warning("已存在同名 SRT, 新的内容将在其末尾追加")
                 f = open(path, "a")
         except IOError:
-            log.error("无法打开:" + path)
+            log.error("无法打开: " + path)
         else:
             f.close()
             self.path = path
@@ -962,7 +960,7 @@ class SRT:
         try:
             self.srt = open(self.path, "a")
         except IOError:
-            log.error("无法打开:" + self.path)
+            log.error("无法打开: " + self.path)
         else:
             self.is_open = True
 
@@ -978,20 +976,6 @@ class SRT:
 
     def end_write(self):
         self.srt.close()
-
-
-def timer(name: str | None = None):
-    def decorator(func: Callable):
-        def wrapper(*args, **kwargs):
-            start_time = time.time()
-            func(*args, **kwargs)
-            log.info(
-                f"{'' if name is None else f'{name} '}耗时: {time.time() - start_time}s"
-            )
-
-        return wrapper
-
-    return decorator
 
 
 def findThreshold_start():
@@ -1052,7 +1036,7 @@ def findThreshold_start():
 
 
 def findThreshold_end():
-    global ocr_reader, srt, is_Listener_threshold_value_Entry, frame_now, end_all_thread
+    global srt, is_Listener_threshold_value_Entry, frame_now, end_all_thread
 
     end_all_thread = True
     frame_now = end_num  # 关闭阈值检测和绘制线程
@@ -1118,18 +1102,6 @@ def findThreshold_reading():
     # global frame_count,frame_now,start_num,end_num,bedraw_frame
     global frame_count, frame_now, start_num, end_num
 
-    video_review_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
-    video_review_Label.bind("<B1-Motion>", draw_video_review_MouseDrag)
-    video_review_Label.bind("<Button-1>", draw_video_review_MouseDown)
-
-    video_Progressbar.bind("<MouseWheel>", video_progressbar_mousewheel)
-    video_Progressbar.bind("<B1-Motion>", video_progressbar_leftDrag)
-    video_Progressbar.bind("<Button-1>", video_progressbar_leftDrag)
-
-    video_frame_Label.bind("<B1-Motion>", video_progressbar_leftDrag)
-    video_frame_Label.bind("<Button-1>", video_progressbar_leftDrag)
-    video_frame_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
-
     if right_x_Tkint.get() < 4 or right_y_Tkint.get() < 4:
         # sec_rendering_Cap.set(cv2.CAP_PROP_POS_FRAMES,0)
         # _, frame = sec_rendering_Cap.read()
@@ -1172,7 +1144,7 @@ def findThreshold_reading():
     Thread(target=Thread_draw_video_progress, daemon=True).start()
 
 
-@timer("阈值检测")
+@ss_utils.timer("阈值检测")
 def Thread_compute_difference(frame_front: cv2.typing.MatLike):
     global frame_now, is_Listener_threshold_value_Entry
 
@@ -1192,7 +1164,7 @@ def Thread_compute_difference(frame_front: cv2.typing.MatLike):
             frame_front = frame_behind
             frame_now += 1
     else:
-        log.info(f"因阈值设定 {threshold_value_input_Tkint.get()} < -1, 故跳过阈值检测")
+        log.info(f"因阈值设定 {threshold_value_input_Tkint.get()} < -1, 跳过阈值检测")
 
     frame_now = end_num
 
@@ -1204,7 +1176,19 @@ def Thread_compute_difference(frame_front: cv2.typing.MatLike):
         is_Listener_threshold_value_Entry = True
         Thread(target=Listener_threshold_value_Entry, daemon=True).start()
 
-        start_threshold_detection_Button.config(text="OCR", state=tk.NORMAL)
+        start_threshold_detection_Button.config(state=tk.NORMAL)
+
+        video_review_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
+        video_review_Label.bind("<B1-Motion>", draw_video_review_MouseDrag)
+        video_review_Label.bind("<Button-1>", draw_video_review_MouseDown)
+
+        video_Progressbar.bind("<MouseWheel>", video_progressbar_mousewheel)
+        video_Progressbar.bind("<B1-Motion>", video_progressbar_leftDrag)
+        video_Progressbar.bind("<Button-1>", video_progressbar_leftDrag)
+
+        video_frame_Label.bind("<B1-Motion>", video_progressbar_leftDrag)
+        video_frame_Label.bind("<Button-1>", video_progressbar_leftDrag)
+        video_frame_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
 
 
 def Thread_draw_video_progress():
@@ -1317,7 +1301,7 @@ def OCR_API(frame: cv2.typing.MatLike) -> str:
     return res_text
 
 
-@timer("OCR")
+@ss_utils.timer("OCR")
 def Thread_OCR_reading():
     global frame_now, ocred_num
 
