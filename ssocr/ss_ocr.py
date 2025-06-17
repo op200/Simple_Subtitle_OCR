@@ -6,6 +6,10 @@ from ss_log import log
 import ss_gui_var
 
 
+if not hasattr(cv2, "quality"):
+    log.error("OpenCV 版本不匹配, 将无法使用阈值检测")
+
+
 class ocr_module(enum.Enum):
     PaddleOCR = "PaddleOCR"
     EasyOCR = "EasyOCR"
@@ -34,7 +38,7 @@ class api:
                     return PaddleOCR
 
                 except ModuleNotFoundError as e:
-                    log.error(f"存在未安装的库: {e}")
+                    log.error(f"导入 PaddleOCR 时存在未安装的库: {e}")
 
             case ocr_module.EasyOCR:
                 try:
@@ -48,10 +52,10 @@ class api:
                     return easyocr
 
                 except ModuleNotFoundError as e:
-                    log.error(f"存在未安装的库: {e}")
+                    log.error(f"导入 EasyOCR 时存在未安装的库: {e}")
 
     @staticmethod
-    def read(frame: cv2.typing.MatLike) -> str:
+    def ocr(frame: cv2.typing.MatLike) -> str:
         match api.ocr_choice:
             case ocr_module.PaddleOCR:
                 from paddleocr import PaddleOCR
@@ -75,3 +79,10 @@ class api:
                 readed_text = api.ocr_reader.readtext(frame, detail=0)
 
         return "\n".join(readed_text) + "\n"
+
+    @staticmethod
+    def threshold_detection(img1: cv2.typing.MatLike, img2: cv2.typing.MatLike) -> int:
+        ssim = cv2.quality.QualitySSIM.create(img1)
+        score = ssim.compute(img2)
+
+        return round(1000 - score[0] * 1000)

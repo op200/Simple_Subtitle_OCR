@@ -1,7 +1,10 @@
 import sys
 
+from ss_log import log
 
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
+
+log.reset_cmd_color()
 
 
 if len(sys.argv) <= 1:
@@ -12,4 +15,4 @@ if len(sys.argv) <= 1:
 
 else:
     print("CLI 模式待做")
-    # todo: 命令行模式
+    # TODO: 命令行模式
