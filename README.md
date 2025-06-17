@@ -4,7 +4,7 @@
 
 ## 必要依赖库
 ```
-pip install -U opencv-python
+pip install -U opencv-contrib-python
 pip install -U pillow
 pip install -U numpy
 ```
