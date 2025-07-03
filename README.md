@@ -16,9 +16,8 @@ pip install -U numpy
 ### 使用 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR/) (默认)
 
 > [!CAUTION]
-> PaddleOCR 的新版本 (v3.0.1) 不兼容 Python 3.13 等环境  
-> 若需要使用新版，可以用其他 Python 版本  
-> 若仅需要使用旧版，指定旧版本以安装 `pip install paddleocr==2.10.0`
+> SSOCR v0.10.0 开始不再支持 PaddleOCR v2 API  
+> PaddleOCR 版本必须 >= 3.1.0
 
 先安装 [飞桨](https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/windows-pip.html)  
 再安装 PaddleOCR
