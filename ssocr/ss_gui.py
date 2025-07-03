@@ -714,13 +714,13 @@ def set_filter_set_event():
     jump_to_frame(None)
 
 
-set_filter_set = ttk.Checkbutton(
+set_filter_Checkbutton = ttk.Checkbutton(
     set_filter_Frame,
     text="启用滤镜",
     variable=ss_gui_var.set_filter_Tkbool,
     command=set_filter_set_event,
 )
-set_filter_set.grid(row=0, column=0)
+set_filter_Checkbutton.grid(row=0, column=0)
 
 retain_color_tolerance_Frame = ttk.Frame(set_filter_Frame)
 retain_color_tolerance_Frame.grid(row=0, column=1, padx=5)
@@ -1003,7 +1003,7 @@ def findThreshold_start():
     set_language_Entry.config(state=tk.DISABLED)
     open_gpu_set_Checkbutton.config(state=tk.DISABLED)
 
-    set_filter_set.config(state=tk.DISABLED)
+    set_filter_Checkbutton.config(state=tk.DISABLED)
     retain_color_tolerance_Label.config(state=tk.DISABLED)
     retain_color_tolerance_Entry.config(state=tk.DISABLED)
     retain_color1_Entry.config(state=tk.DISABLED)
@@ -1055,7 +1055,7 @@ def findThreshold_end():
     set_language_Entry.config(state=tk.NORMAL)
     open_gpu_set_Checkbutton.config(state=tk.NORMAL)
 
-    set_filter_set.config(state=tk.NORMAL)
+    set_filter_Checkbutton.config(state=tk.NORMAL)
     retain_color_tolerance_Label.config(state=tk.NORMAL)
     retain_color_tolerance_Entry.config(state=tk.NORMAL)
     retain_color1_Entry.config(state=tk.NORMAL)
@@ -1146,7 +1146,7 @@ def findThreshold_reading():
 
 @ss_utils.timer("阈值检测")
 def Thread_compute_difference(frame_front: cv2.typing.MatLike):
-    global frame_now, is_Listener_threshold_value_Entry
+    global frame_now, is_Listener_threshold_value_Entry, is_Thread_draw_video_progress
 
     if threshold_value_input_Tkint.get() >= -1:
         while frame_now <= end_num:
@@ -1154,7 +1154,11 @@ def Thread_compute_difference(frame_front: cv2.typing.MatLike):
                 left_y_Tkint.get() : right_y_Tkint.get(),
                 left_x_Tkint.get() : right_x_Tkint.get(),
             ]
-            frame_behind = img_filter(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            frame_behind = (
+                img_filter(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                if ss_gui_var.set_filter_Tkbool.get()
+                else frame
+            )
             if difference_list[frame_now] == -1:
                 # 写入差值
                 difference_list[frame_now] = ss_ocr.api.threshold_detection(
@@ -1169,6 +1173,8 @@ def Thread_compute_difference(frame_front: cv2.typing.MatLike):
     frame_now = end_num
 
     threshold_value_input_Entry.config(state=tk.NORMAL)
+
+    is_Thread_draw_video_progress = False
 
     if not end_all_thread:
         transition_frame_num_Label.grid()
@@ -1191,10 +1197,25 @@ def Thread_compute_difference(frame_front: cv2.typing.MatLike):
         video_frame_Label.bind("<MouseWheel>", video_progressbar_mousewheel)
 
 
+is_Thread_draw_video_progress: bool = False
+
+
 def Thread_draw_video_progress():
-    # global bedraw_frame,frame_now,end_num
-    global frame_now, end_num, scale, right_x, right_y, left_x, left_y
-    while not end_all_thread:
+    global \
+        is_Thread_draw_video_progress, \
+        frame_now, \
+        end_num, \
+        scale, \
+        right_x, \
+        right_y, \
+        left_x, \
+        left_y
+
+    if is_Thread_draw_video_progress:
+        return
+    is_Thread_draw_video_progress = True
+
+    while end_all_thread is False and is_Thread_draw_video_progress is True:
         if frame_now > end_num:
             time.sleep(0.2)
             continue
@@ -1215,6 +1236,8 @@ def Thread_draw_video_progress():
         if frame_now == end_num:
             break
         time.sleep(2)
+
+    is_Thread_draw_video_progress = False
 
 
 def Listener_threshold_value_Entry():
@@ -1255,11 +1278,24 @@ def Listener_threshold_value_Entry():
 
 def start_OCR():
     global \
+        is_Thread_draw_video_progress, \
         is_Listener_threshold_value_Entry, \
         frame_now, \
         start_num, \
         end_num, \
         is_Thread_OCR_reading
+
+    video_review_Label.unbind("<MouseWheel>")
+    video_review_Label.unbind("<B1-Motion>")
+    video_review_Label.unbind("<Button-1>")
+
+    video_Progressbar.unbind("<MouseWheel>")
+    video_Progressbar.unbind("<B1-Motion>")
+    video_Progressbar.unbind("<Button-1>")
+
+    video_frame_Label.unbind("<MouseWheel>")
+    video_frame_Label.unbind("<B1-Motion>")
+    video_frame_Label.unbind("<Button-1>")
 
     restart_threshold_detection_Button.config(state=tk.DISABLED)
     threshold_value_input_Entry.config(state=tk.DISABLED)
