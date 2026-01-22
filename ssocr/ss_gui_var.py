@@ -2,7 +2,6 @@ import ctypes
 import os
 import tkinter as tk
 
-
 from ss_log import log
 
 windows_scaling: float = 1

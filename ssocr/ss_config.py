@@ -1,17 +1,17 @@
-import os
 import configparser
+import os
 import platform
 
-from ss_log import log
-import ss_ocr
-import ss_info
 import ss_gui_var
+import ss_info
+import ss_ocr
+from ss_log import log
 
 # 判断系统对应路径
 os_type = platform.system()
 if os_type == "Windows":
     config_dir = os.path.join(os.getenv("APPDATA") or "", "SS_OCR")
-elif os_type == "Linux" or os_type == "Darwin":
+elif os_type in {"Linux", "Darwin"}:
     config_dir = os.path.join(os.path.expanduser("~"), ".config", "SS_OCR")
 else:
     config_dir = ""
@@ -24,9 +24,8 @@ ocr_choice: ss_ocr.ocr_module = ss_ocr.ocr_module.PaddleOCR
 # 不存在配置则写入默认配置
 config = configparser.ConfigParser()
 config_file_pathname = os.path.join(config_dir, "config.ini")
-if (
-    not os.path.exists(config_file_pathname)
-    or config.read(config_file_pathname)
+if not os.path.exists(config_file_pathname) or (
+    config.read(config_file_pathname)
     and config.get("DEFAULT", "version") != ss_info.PROJECT_VERSION
 ):
     config["DEFAULT"] = {

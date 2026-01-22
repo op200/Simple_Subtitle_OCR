@@ -2,8 +2,6 @@ import sys
 
 from ss_log import log
 
-# os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
-
 log.reset_cmd_color()
 
 

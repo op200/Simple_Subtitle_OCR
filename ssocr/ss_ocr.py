@@ -1,11 +1,9 @@
 import enum
-import json
+from typing import TYPE_CHECKING
 
 import cv2
-
-from ss_log import log
 import ss_gui_var
-
+from ss_log import log
 
 if not hasattr(cv2, "quality"):
     log.error("OpenCV 版本不匹配, 将无法使用阈值检测")
@@ -28,7 +26,7 @@ class api:
             case ocr_module.PaddleOCR:
                 try:
                     # 通过提前 import torch 防止 PaddleOCR 内部的 import 异常
-                    # import torch  # noqa: F401
+                    # import torch
                     from paddleocr import PaddleOCR
 
                     if not hasattr(PaddleOCR, "predict"):
@@ -37,11 +35,10 @@ class api:
                     api.ocr_reader = PaddleOCR(
                         lang=ss_gui_var.set_language_Tkstr.get(),
                     )
-
-                    return PaddleOCR
-
                 except ModuleNotFoundError as e:
                     log.error(f"导入 PaddleOCR 时存在未安装的库: {e}")
+                else:
+                    return PaddleOCR
 
             case ocr_module.EasyOCR:
                 try:
@@ -51,11 +48,10 @@ class api:
                         ss_gui_var.set_language_Tkstr.get().split(","),
                         gpu=ss_gui_var.open_gpu_Tkbool.get(),
                     )
-
-                    return easyocr
-
                 except ModuleNotFoundError as e:
                     log.error(f"导入 EasyOCR 时存在未安装的库: {e}")
+                else:
+                    return easyocr
 
     @staticmethod
     def ocr(frame: cv2.typing.MatLike) -> str:
@@ -65,24 +61,23 @@ class api:
         match api.ocr_choice:
             case ocr_module.PaddleOCR:
                 from paddleocr import PaddleOCR
-                from paddlex.inference.pipelines.ocr.result import OCRResult
+
+                if TYPE_CHECKING:
+                    from paddlex.inference.pipelines.ocr.result import OCRResult
 
                 if not isinstance(api.ocr_reader, PaddleOCR):
-                    raise Exception()
+                    raise TypeError
 
                 ocr_res: OCRResult = api.ocr_reader.predict(frame)[0]
                 text: list[str] | None = ocr_res.get("rec_texts")
 
-                if text is None:
-                    readed_text = [""]
-                else:
-                    readed_text = text
+                readed_text = [""] if text is None else text
 
             case ocr_module.EasyOCR:
                 import easyocr
 
                 if not isinstance(api.ocr_reader, easyocr.Reader):
-                    raise Exception()
+                    raise TypeError
 
                 readed_text = [str(t) for t in api.ocr_reader.readtext(frame, detail=0)]
 

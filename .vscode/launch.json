@@ -2,14 +2,14 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python 调试程序 GUI",
+            "name": "GUI",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/ssocr",
             "console": "integratedTerminal",
         },
         {
-            "name": "Python 调试程序 CLI",
+            "name": "CLI",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/ssocr",

@@ -1,9 +1,9 @@
 import ctypes
-from ctypes import wintypes
 import datetime
 import enum
 import os
 import tkinter as tk
+from ctypes import wintypes
 
 
 class log:

@@ -3,38 +3,37 @@ name: Build ssocr.pyz
 on:
   push:
     paths:
-      - 'ssocr/**'
-      - '.github/workflows/*'
-    branches: [ "main" ]
+      - "ssocr/**"
+      - ".github/workflows/*"
+    branches: ["main"]
   pull_request:
     paths:
-      - 'ssocr/**'
-      - '.github/workflows/*'
-    branches: [ "main" ]
+      - "ssocr/**"
+      - ".github/workflows/*"
+    branches: ["main"]
 
 permissions:
   contents: read
 
 jobs:
   build:
-
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.13"
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
 
-    - name: Build
-      run: |
-        python -m compileall -f ssocr
-        python -m zipapp ssocr --output ssocr.pyz --compress
+      - name: Build
+        run: |
+          python -m compileall -f ssocr
+          python -m zipapp ssocr --output ssocr.pyz --compress
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ssocr.pyz
-        path: ssocr.pyz
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssocr.pyz
+          path: ssocr.pyz

@@ -1,12 +1,13 @@
 import time
-from typing import Callable
+from collections.abc import Callable
+from typing import Any
 
 from ss_log import log
 
 
 def timer(name: str | None = None):
     def decorator(func: Callable):
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any):
             start_time = time.time()
             func(*args, **kwargs)
             log.info(
